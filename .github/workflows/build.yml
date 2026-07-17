@@ -1,0 +1,45 @@
+name: build
+run-name: build ${{ inputs.ref }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'line branch to build (e.g. astermesh/v0.3)'
+        required: true
+        default: 'astermesh/v0.3'
+
+jobs:
+  build:
+    name: Build engine + package
+    runs-on: ubuntu-latest
+    env:
+      BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: pnpm install
+      - name: Build all
+        env:
+          PGSRC: ${{ github.workspace }}/postgres-pglite
+        run: pnpm build:all
+      - name: Upload engine artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pglite-release
+          path: packages/pglite/release/**
+          retention-days: 60
+      - name: Upload package dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: pglite-dist
+          path: packages/pglite/dist/**
+          retention-days: 60
