@@ -1,5 +1,9 @@
 name: build
-run-name: build ${{ inputs.ref }}
+run-name: publish ${{ inputs.ref }} as ${{ inputs.version }}
+
+permissions:
+  contents: read
+  packages: write
 
 on:
   workflow_dispatch:
@@ -8,6 +12,10 @@ on:
         description: 'line branch to build (e.g. astermesh/v0.3)'
         required: true
         default: 'astermesh/v0.3'
+      version:
+        description: 'package version to publish'
+        required: true
+        default: '0.3.17'
 
 jobs:
   build:
@@ -25,14 +33,47 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@astermesh'
       - name: Install
         run: pnpm install
+      - name: Set release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$RELEASE_VERSION" =~ ^0\.3\.[0-9]+$ ]]
+          cd packages/pglite
+          npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts
+          npm pkg set repository.url='https://github.com/astermesh/pglite.git'
       - name: Build engine
         env:
           PGSRC: ${{ github.workspace }}/postgres-pglite
         run: pnpm wasm:build
       - name: Build package
         run: pnpm --filter "./packages/pglite..." build
+      - name: Write provenance
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          BUILDER_IMAGE='electricsql/pglite-builder:3.1.74_4'
+          BUILDER_DIGEST="$(docker image inspect "$BUILDER_IMAGE" --format '{{index .RepoDigests 0}}')"
+          WRAPPER_COMMIT="$(git rev-parse HEAD)"
+          ENGINE_COMMIT="$(git -C postgres-pglite rev-parse HEAD)"
+          cat > packages/pglite/PROVENANCE.md <<EOF
+          # Build provenance
+
+          - Package: \`@astermesh/pglite@$RELEASE_VERSION\`
+          - Upstream package: \`@electric-sql/pglite@0.3.16\`
+          - Upstream wrapper release: \`4555814e2b0beac8af5d5d760907040b7b8f61df\`
+          - Wrapper line commit: \`$WRAPPER_COMMIT\`
+          - Upstream engine pin: \`51e222cc5f799675b8dd098f5cb7bf46cbad75a2\`
+          - Engine line commit: \`$ENGINE_COMMIT\`
+          - Engine patch: \`2b87c7880b6e4a9af56d582b4d94d10000437aac\`
+          - PostgreSQL: \`17.5\`
+          - Emscripten SDK: \`3.1.74.11.11\`
+          - Builder: \`$BUILDER_DIGEST\`
+          - Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          EOF
       - name: Upload engine artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -45,3 +86,8 @@ jobs:
           name: pglite-dist
           path: packages/pglite/dist/**
           retention-days: 60
+      - name: Publish package
+        working-directory: packages/pglite
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish
