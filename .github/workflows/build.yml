@@ -35,13 +35,19 @@ jobs:
           node-version: 20
           registry-url: 'https://npm.pkg.github.com'
           scope: '@astermesh'
+      - name: Validate release request
+        env:
+          RELEASE_REF: ${{ inputs.ref }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$RELEASE_REF" == 'astermesh/v0.3' ]]
+          [[ "$RELEASE_VERSION" =~ ^0\.3\.[0-9]+$ ]]
       - name: Install
         run: pnpm install
       - name: Set release version
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          [[ "$RELEASE_VERSION" =~ ^0\.3\.[0-9]+$ ]]
           cd packages/pglite
           npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts
           npm pkg set repository.url='https://github.com/astermesh/pglite.git'
@@ -57,6 +63,9 @@ jobs:
         run: |
           BUILDER_IMAGE='electricsql/pglite-builder:3.1.74_4'
           BUILDER_DIGEST="$(docker image inspect "$BUILDER_IMAGE" --format '{{index .RepoDigests 0}}')"
+          SDK_VERSION="$(sed -n 's/^SDK_VERSION=//p' postgres-pglite/.buildconfig)"
+          [[ -n "$BUILDER_DIGEST" ]]
+          [[ -n "$SDK_VERSION" ]]
           WRAPPER_COMMIT="$(git rev-parse HEAD)"
           ENGINE_COMMIT="$(git -C postgres-pglite rev-parse HEAD)"
           cat > packages/pglite/PROVENANCE.md <<EOF
@@ -70,10 +79,50 @@ jobs:
           - Engine line commit: \`$ENGINE_COMMIT\`
           - Engine patch: \`2b87c7880b6e4a9af56d582b4d94d10000437aac\`
           - PostgreSQL: \`17.5\`
-          - Emscripten SDK: \`3.1.74.11.11\`
+          - Emscripten SDK: \`$SDK_VERSION\`
           - Builder: \`$BUILDER_DIGEST\`
           - Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           EOF
+      - name: Verify publish payload
+        working-directory: packages/pglite
+        env:
+          PACK_REPORT: ${{ runner.temp }}/pglite-pack.json
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          npm pack --dry-run --json > "$PACK_REPORT"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+
+          const [pack] = JSON.parse(readFileSync(process.env.PACK_REPORT, 'utf8'))
+          const expectedVersion = process.env.RELEASE_VERSION
+          const paths = new Set(pack.files.map((file) => file.path))
+          if (pack.name !== '@astermesh/pglite') {
+            throw new Error('unexpected package name: ' + pack.name)
+          }
+          if (pack.version !== expectedVersion) {
+            throw new Error('unexpected package version: ' + pack.version)
+          }
+          if (!paths.has('PROVENANCE.md')) {
+            throw new Error('PROVENANCE.md is missing from the package')
+          }
+
+          const provenance = readFileSync('PROVENANCE.md', 'utf8')
+          const required = [
+            ['upstream package', /- Upstream package: `@electric-sql\/pglite@0\.3\.16`/],
+            ['upstream wrapper release', /- Upstream wrapper release: `[0-9a-f]{40}`/],
+            ['wrapper line commit', /- Wrapper line commit: `[0-9a-f]{40}`/],
+            ['upstream engine pin', /- Upstream engine pin: `[0-9a-f]{40}`/],
+            ['engine line commit', /- Engine line commit: `[0-9a-f]{40}`/],
+            ['Emscripten SDK', /- Emscripten SDK: `[^`]+`/],
+            ['builder digest', /- Builder: `[^`]+@sha256:[0-9a-f]{64}`/],
+            ['workflow run', /- Workflow run: https:\/\/github\.com\/astermesh\/pglite\/actions\/runs\/[0-9]+/],
+          ]
+          for (const [field, pattern] of required) {
+            if (!pattern.test(provenance)) {
+              throw new Error('missing or invalid provenance field: ' + field)
+            }
+          }
+          NODE
       - name: Upload engine artifacts
         uses: actions/upload-artifact@v4
         with:
