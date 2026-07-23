@@ -1,0 +1,19 @@
+name: publish owned package
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    branches:
+      - 'astermesh/v*'
+    paths:
+      - 'packages/pglite/package.json'
+
+jobs:
+  publish:
+    uses: astermesh/pglite/.github/workflows/build.yml@astermesh/ci
+    with:
+      ref: ${{ github.sha }}
+      line: ${{ github.ref_name }}
