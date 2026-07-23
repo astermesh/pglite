@@ -1,5 +1,5 @@
-name: build
-run-name: publish ${{ inputs.ref }} as ${{ inputs.version }}
+name: build and publish
+run-name: publish ${{ inputs.line || inputs.ref }} from ${{ inputs.ref }}
 
 permissions:
   contents: read
@@ -9,25 +9,48 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'line branch to build (e.g. astermesh/v0.3)'
+        description: 'line branch to publish (astermesh/vX.Y)'
         required: true
-        default: 'astermesh/v0.3'
+        type: string
       version:
-        description: 'package version to publish'
+        description: 'immutable package version to publish'
         required: true
-        default: '0.3.17'
+        type: string
+  workflow_call:
+    inputs:
+      ref:
+        description: 'exact line commit to publish'
+        required: true
+        type: string
+      line:
+        description: 'line branch containing the commit'
+        required: true
+        type: string
+      version:
+        description: 'version override; defaults to packages/pglite/package.json'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: pglite-publish-${{ inputs.line || inputs.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build engine + package
+  publish:
+    name: Build and publish package
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
+      RELEASE_LINE: ${{ inputs.line || inputs.ref }}
+      REQUESTED_VERSION: ${{ inputs.version }}
       TZ: UTC
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
           submodules: recursive
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -35,20 +58,135 @@ jobs:
           node-version: 20
           registry-url: 'https://npm.pkg.github.com'
           scope: '@astermesh'
-      - name: Validate release request
-        env:
-          RELEASE_REF: ${{ inputs.ref }}
-          RELEASE_VERSION: ${{ inputs.version }}
+      - name: Resolve and validate release
+        id: release
+        shell: bash
         run: |
-          [[ "$RELEASE_REF" == 'astermesh/v0.3' ]]
-          [[ "$RELEASE_VERSION" =~ ^0\.3\.[0-9]+$ ]]
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_LINE" =~ ^astermesh/v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::invalid release line: $RELEASE_LINE"
+            exit 1
+          fi
+          LINE_MAJOR="${BASH_REMATCH[1]}"
+          LINE_MINOR="${BASH_REMATCH[2]}"
+
+          PACKAGE_NAME="$(node -p "require('./packages/pglite/package.json').name")"
+          SOURCE_VERSION="$(node -p "require('./packages/pglite/package.json').version")"
+          RELEASE_VERSION="${REQUESTED_VERSION:-$SOURCE_VERSION}"
+
+          if [[ "$PACKAGE_NAME" != '@astermesh/pglite' ]]; then
+            echo "::error::unexpected package name: $PACKAGE_NAME"
+            exit 1
+          fi
+          if [[ ! "$SOURCE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::invalid source version: $SOURCE_VERSION"
+            exit 1
+          fi
+          SOURCE_PATCH="${BASH_REMATCH[3]}"
+          if [[ "${BASH_REMATCH[1]}" != "$LINE_MAJOR" || "${BASH_REMATCH[2]}" != "$LINE_MINOR" ]]; then
+            echo "::error::source version $SOURCE_VERSION does not belong to $RELEASE_LINE"
+            exit 1
+          fi
+          if [[ ! "$RELEASE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::invalid release version: $RELEASE_VERSION"
+            exit 1
+          fi
+          RELEASE_PATCH="${BASH_REMATCH[3]}"
+          if [[ "${BASH_REMATCH[1]}" != "$LINE_MAJOR" || "${BASH_REMATCH[2]}" != "$LINE_MINOR" ]]; then
+            echo "::error::release version $RELEASE_VERSION does not belong to $RELEASE_LINE"
+            exit 1
+          fi
+          if (( RELEASE_PATCH < SOURCE_PATCH )); then
+            echo "::error::release version $RELEASE_VERSION precedes source version $SOURCE_VERSION"
+            exit 1
+          fi
+
+          git fetch --no-tags origin \
+            "+refs/heads/$RELEASE_LINE:refs/remotes/origin/$RELEASE_LINE"
+          SOURCE_COMMIT="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor \
+            "$SOURCE_COMMIT" "refs/remotes/origin/$RELEASE_LINE"; then
+            echo "::error::$SOURCE_COMMIT is not part of $RELEASE_LINE"
+            exit 1
+          fi
+
+          git fetch --no-tags origin \
+            '+refs/heads/main:refs/remotes/origin/main'
+          UPSTREAM_WRAPPER_COMMIT="$(
+            git merge-base "$SOURCE_COMMIT" refs/remotes/origin/main
+          )"
+          UPSTREAM_PACKAGE_NAME="$(
+            git show "$UPSTREAM_WRAPPER_COMMIT:packages/pglite/package.json" |
+              node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).name"
+          )"
+          UPSTREAM_PACKAGE_VERSION="$(
+            git show "$UPSTREAM_WRAPPER_COMMIT:packages/pglite/package.json" |
+              node -p "JSON.parse(require('node:fs').readFileSync(0, 'utf8')).version"
+          )"
+          if [[ "$UPSTREAM_PACKAGE_NAME" != '@electric-sql/pglite' ]]; then
+            echo "::error::unexpected upstream package: $UPSTREAM_PACKAGE_NAME"
+            exit 1
+          fi
+          if [[ ! "$UPSTREAM_PACKAGE_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::invalid upstream version: $UPSTREAM_PACKAGE_VERSION"
+            exit 1
+          fi
+          if [[ "${BASH_REMATCH[1]}" != "$LINE_MAJOR" || "${BASH_REMATCH[2]}" != "$LINE_MINOR" ]]; then
+            echo "::error::upstream version $UPSTREAM_PACKAGE_VERSION does not belong to $RELEASE_LINE"
+            exit 1
+          fi
+
+          UPSTREAM_ENGINE_PIN="$(
+            git ls-tree "$UPSTREAM_WRAPPER_COMMIT" postgres-pglite |
+              awk '{print $3}'
+          )"
+          WRAPPER_ENGINE_COMMIT="$(
+            git ls-tree "$SOURCE_COMMIT" postgres-pglite |
+              awk '{print $3}'
+          )"
+          ENGINE_COMMIT="$(git -C postgres-pglite rev-parse HEAD)"
+          if [[ -z "$UPSTREAM_ENGINE_PIN" ]]; then
+            echo "::error::upstream wrapper has no postgres-pglite gitlink"
+            exit 1
+          fi
+          if [[ "$WRAPPER_ENGINE_COMMIT" != "$ENGINE_COMMIT" ]]; then
+            echo "::error::checked-out engine does not match the wrapper gitlink"
+            exit 1
+          fi
+
+          PG_VERSION="$(sed -n 's/^PG_VERSION=//p' "$BUILD_CONFIG_FILE")"
+          SDK_VERSION="$(sed -n 's/^SDK_VERSION=//p' "$BUILD_CONFIG_FILE")"
+          BUILDER_IMAGE="$(
+            awk '$1 ~ /^electricsql\/pglite-builder:/ { print $1 }' \
+              postgres-pglite/build-with-docker.sh
+          )"
+          if [[ -z "$PG_VERSION" || "$PG_VERSION" == *$'\n'* ||
+                -z "$SDK_VERSION" || "$SDK_VERSION" == *$'\n'* ||
+                -z "$BUILDER_IMAGE" || "$BUILDER_IMAGE" == *$'\n'* ]]
+          then
+            echo "::error::incomplete engine build identity"
+            exit 1
+          fi
+
+          {
+            echo "release_version=$RELEASE_VERSION"
+            echo "upstream_package=$UPSTREAM_PACKAGE_NAME@$UPSTREAM_PACKAGE_VERSION"
+            echo "upstream_wrapper_commit=$UPSTREAM_WRAPPER_COMMIT"
+            echo "source_commit=$SOURCE_COMMIT"
+            echo "upstream_engine_pin=$UPSTREAM_ENGINE_PIN"
+            echo "engine_commit=$ENGINE_COMMIT"
+            echo "pg_version=$PG_VERSION"
+            echo "sdk_version=$SDK_VERSION"
+            echo "builder_image=$BUILDER_IMAGE"
+          } >> "$GITHUB_OUTPUT"
       - name: Install
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
       - name: Set release version
+        working-directory: packages/pglite
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
         run: |
-          cd packages/pglite
           npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts
           npm pkg set repository.url='https://github.com/astermesh/pglite.git'
       - name: Build engine
@@ -59,80 +197,100 @@ jobs:
         run: pnpm --filter "./packages/pglite..." build
       - name: Write provenance
         env:
-          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+          UPSTREAM_PACKAGE: ${{ steps.release.outputs.upstream_package }}
+          UPSTREAM_WRAPPER_COMMIT: ${{ steps.release.outputs.upstream_wrapper_commit }}
+          WRAPPER_LINE_COMMIT: ${{ steps.release.outputs.source_commit }}
+          UPSTREAM_ENGINE_PIN: ${{ steps.release.outputs.upstream_engine_pin }}
+          ENGINE_LINE_COMMIT: ${{ steps.release.outputs.engine_commit }}
+          PG_VERSION: ${{ steps.release.outputs.pg_version }}
+          SDK_VERSION: ${{ steps.release.outputs.sdk_version }}
+          BUILDER_IMAGE: ${{ steps.release.outputs.builder_image }}
         run: |
-          BUILDER_IMAGE='electricsql/pglite-builder:3.1.74_4'
-          BUILDER_DIGEST="$(docker image inspect "$BUILDER_IMAGE" --format '{{index .RepoDigests 0}}')"
-          SDK_VERSION="$(sed -n 's/^SDK_VERSION=//p' postgres-pglite/.buildconfig)"
-          [[ -n "$BUILDER_DIGEST" ]]
-          [[ -n "$SDK_VERSION" ]]
-          WRAPPER_COMMIT="$(git rev-parse HEAD)"
-          ENGINE_COMMIT="$(git -C postgres-pglite rev-parse HEAD)"
+          set -euo pipefail
+          BUILDER_DIGEST="$(
+            docker image inspect "$BUILDER_IMAGE" \
+              --format '{{index .RepoDigests 0}}'
+          )"
+          if [[ ! "$BUILDER_DIGEST" =~ @sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::invalid builder digest: $BUILDER_DIGEST"
+            exit 1
+          fi
           cat > packages/pglite/PROVENANCE.md <<EOF
           # Build provenance
 
           - Package: \`@astermesh/pglite@$RELEASE_VERSION\`
-          - Upstream package: \`@electric-sql/pglite@0.3.16\`
-          - Upstream wrapper release: \`4555814e2b0beac8af5d5d760907040b7b8f61df\`
-          - Wrapper line commit: \`$WRAPPER_COMMIT\`
-          - Upstream engine pin: \`51e222cc5f799675b8dd098f5cb7bf46cbad75a2\`
-          - Engine line commit: \`$ENGINE_COMMIT\`
-          - Engine patch: \`2b87c7880b6e4a9af56d582b4d94d10000437aac\`
-          - PostgreSQL: \`17.5\`
+          - Upstream package: \`$UPSTREAM_PACKAGE\`
+          - Upstream wrapper release: \`$UPSTREAM_WRAPPER_COMMIT\`
+          - Wrapper line commit: \`$WRAPPER_LINE_COMMIT\`
+          - Upstream engine pin: \`$UPSTREAM_ENGINE_PIN\`
+          - Engine line commit: \`$ENGINE_LINE_COMMIT\`
+          - PostgreSQL: \`$PG_VERSION\`
           - Emscripten SDK: \`$SDK_VERSION\`
           - Builder: \`$BUILDER_DIGEST\`
-          - Workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          - Workflow run: \`$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\`
           EOF
       - name: Verify publish payload
         working-directory: packages/pglite
         env:
           PACK_REPORT: ${{ runner.temp }}/pglite-pack.json
-          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+          UPSTREAM_PACKAGE: ${{ steps.release.outputs.upstream_package }}
+          UPSTREAM_WRAPPER_COMMIT: ${{ steps.release.outputs.upstream_wrapper_commit }}
+          WRAPPER_LINE_COMMIT: ${{ steps.release.outputs.source_commit }}
+          UPSTREAM_ENGINE_PIN: ${{ steps.release.outputs.upstream_engine_pin }}
+          ENGINE_LINE_COMMIT: ${{ steps.release.outputs.engine_commit }}
+          PG_VERSION: ${{ steps.release.outputs.pg_version }}
+          SDK_VERSION: ${{ steps.release.outputs.sdk_version }}
+          EXPECTED_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           npm pack --dry-run --json > "$PACK_REPORT"
           node --input-type=module <<'NODE'
           import { readFileSync } from 'node:fs'
 
           const [pack] = JSON.parse(readFileSync(process.env.PACK_REPORT, 'utf8'))
-          const expectedVersion = process.env.RELEASE_VERSION
+          const expected = {
+            Package: `@astermesh/pglite@${process.env.RELEASE_VERSION}`,
+            'Upstream package': process.env.UPSTREAM_PACKAGE,
+            'Upstream wrapper release': process.env.UPSTREAM_WRAPPER_COMMIT,
+            'Wrapper line commit': process.env.WRAPPER_LINE_COMMIT,
+            'Upstream engine pin': process.env.UPSTREAM_ENGINE_PIN,
+            'Engine line commit': process.env.ENGINE_LINE_COMMIT,
+            PostgreSQL: process.env.PG_VERSION,
+            'Emscripten SDK': process.env.SDK_VERSION,
+            'Workflow run': process.env.EXPECTED_RUN_URL,
+          }
           const paths = new Set(pack.files.map((file) => file.path))
           if (pack.name !== '@astermesh/pglite') {
-            throw new Error('unexpected package name: ' + pack.name)
+            throw new Error(`unexpected package name: ${pack.name}`)
           }
-          if (pack.version !== expectedVersion) {
-            throw new Error('unexpected package version: ' + pack.version)
+          if (pack.version !== process.env.RELEASE_VERSION) {
+            throw new Error(`unexpected package version: ${pack.version}`)
           }
           if (!paths.has('PROVENANCE.md')) {
             throw new Error('PROVENANCE.md is missing from the package')
           }
 
           const provenance = readFileSync('PROVENANCE.md', 'utf8')
-          const required = [
-            ['upstream package', /- Upstream package: `@electric-sql\/pglite@0\.3\.16`/],
-            ['upstream wrapper release', /- Upstream wrapper release: `[0-9a-f]{40}`/],
-            ['wrapper line commit', /- Wrapper line commit: `[0-9a-f]{40}`/],
-            ['upstream engine pin', /- Upstream engine pin: `[0-9a-f]{40}`/],
-            ['engine line commit', /- Engine line commit: `[0-9a-f]{40}`/],
-            ['Emscripten SDK', /- Emscripten SDK: `[^`]+`/],
-            ['builder digest', /- Builder: `[^`]+@sha256:[0-9a-f]{64}`/],
-            ['workflow run', /- Workflow run: https:\/\/github\.com\/astermesh\/pglite\/actions\/runs\/[0-9]+/],
-          ]
-          for (const [field, pattern] of required) {
-            if (!pattern.test(provenance)) {
-              throw new Error('missing or invalid provenance field: ' + field)
+          for (const [field, value] of Object.entries(expected)) {
+            if (!provenance.includes(`- ${field}: \`${value}\``)) {
+              throw new Error(`missing or invalid provenance field: ${field}`)
             }
+          }
+          if (!/- Builder: `[^`]+@sha256:[0-9a-f]{64}`/.test(provenance)) {
+            throw new Error('missing or invalid provenance field: Builder')
           }
           NODE
       - name: Upload engine artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: pglite-release
+          name: pglite-release-${{ steps.release.outputs.release_version }}
           path: packages/pglite/release/**
           retention-days: 60
       - name: Upload package dist
         uses: actions/upload-artifact@v4
         with:
-          name: pglite-dist
+          name: pglite-dist-${{ steps.release.outputs.release_version }}
           path: packages/pglite/dist/**
           retention-days: 60
       - name: Publish package
