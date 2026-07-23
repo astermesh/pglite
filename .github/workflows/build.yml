@@ -2,10 +2,11 @@ name: build and publish
 run-name: publish ${{ inputs.line || inputs.ref }} from ${{ inputs.ref }}
 
 permissions:
+  artifact-metadata: write
+  attestations: write
   contents: read
   id-token: write
   packages: write
-  attestations: write
 
 on:
   workflow_dispatch:
@@ -45,7 +46,8 @@ jobs:
     timeout-minutes: 45
     env:
       BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
-      FORK_LINEAGE_PREDICATE_TYPE: https://github.com/astermesh/pglite/blob/astermesh/ci/.github/attestations/fork-lineage-v1.schema.json
+      FORK_LINEAGE_PREDICATE_TYPE: https://github.com/astermesh/pglite/attestations/fork-lineage/v1
+      FORK_LINEAGE_SCHEMA: ${{ github.workspace }}/.astermesh-ci/.github/attestations/fork-lineage-v1.schema.json
       RELEASE_LINE: ${{ inputs.line || inputs.ref }}
       REQUESTED_VERSION: ${{ inputs.version }}
       TZ: UTC
@@ -55,6 +57,13 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           submodules: recursive
+      - name: Checkout attestation contract
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          sparse-checkout: .github/attestations
+          path: .astermesh-ci
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -157,6 +166,25 @@ jobs:
             echo "::error::checked-out engine does not match the wrapper gitlink"
             exit 1
           fi
+          git -C postgres-pglite fetch --no-tags origin \
+            "+refs/heads/$RELEASE_LINE:refs/remotes/origin/$RELEASE_LINE"
+          if ! git -C postgres-pglite merge-base --is-ancestor \
+            "$ENGINE_COMMIT" "refs/remotes/origin/$RELEASE_LINE"; then
+            echo "::error::$ENGINE_COMMIT is not part of the engine $RELEASE_LINE"
+            exit 1
+          fi
+          until git -C postgres-pglite merge-base --is-ancestor \
+            "$UPSTREAM_ENGINE_PIN" "$ENGINE_COMMIT"
+          do
+            if [[ "$(
+              git -C postgres-pglite rev-parse --is-shallow-repository
+            )" != true ]]; then
+              echo "::error::engine $ENGINE_COMMIT is not based on $UPSTREAM_ENGINE_PIN"
+              exit 1
+            fi
+            git -C postgres-pglite fetch --no-tags --deepen=50 origin \
+              "+refs/heads/$RELEASE_LINE:refs/remotes/origin/$RELEASE_LINE"
+          done
 
           PG_VERSION="$(sed -n 's/^PG_VERSION=//p' "$BUILD_CONFIG_FILE")"
           SDK_VERSION="$(sed -n 's/^SDK_VERSION=//p' "$BUILD_CONFIG_FILE")"
@@ -184,6 +212,16 @@ jobs:
             echo "sdk_version=$SDK_VERSION"
             echo "builder_image=$BUILDER_IMAGE"
           } >> "$GITHUB_OUTPUT"
+      - name: Verify package licensing
+        run: |
+          if ! cmp -s LICENSE packages/pglite/LICENSE; then
+            echo '::error::package Apache license differs from the wrapper license'
+            exit 1
+          fi
+          if ! cmp -s postgres-pglite/COPYRIGHT packages/pglite/POSTGRES-LICENSE; then
+            echo '::error::package PostgreSQL license differs from the engine license'
+            exit 1
+          fi
       - name: Verify release version is new
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -339,6 +377,16 @@ jobs:
           )
           NODE
           echo "predicate=$LINEAGE_PATH" >> "$GITHUB_OUTPUT"
+      - name: Validate fork lineage predicate
+        env:
+          LINEAGE_PATH: ${{ steps.lineage.outputs.predicate }}
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+        run: |
+          npx --yes ajv-cli@5.0.0 validate \
+            --spec=draft2020 \
+            --strict=true \
+            -s "$FORK_LINEAGE_SCHEMA" \
+            -d "$LINEAGE_PATH"
       - name: Pack and verify publish payload
         id: package
         working-directory: packages/pglite
@@ -363,6 +411,9 @@ jobs:
 
           const [pack] = JSON.parse(readFileSync(process.env.PACK_REPORT, 'utf8'))
           const requiredPaths = [
+            'LICENSE',
+            'NOTICE',
+            'POSTGRES-LICENSE',
             'dist/index.cjs',
             'dist/index.d.ts',
             'dist/index.js',
@@ -414,6 +465,8 @@ jobs:
           BUILD_BUNDLE: ${{ steps.build-attestation.outputs.bundle-path }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAGE_BUNDLE: ${{ steps.lineage-attestation.outputs.bundle-path }}
+          LINEAGE_PATH: ${{ steps.lineage.outputs.predicate }}
+          LINEAGE_VERIFICATION: ${{ runner.temp }}/pglite-lineage-verification.json
           SIGNER_WORKFLOW: astermesh/pglite/.github/workflows/build.yml
           TARBALL: ${{ steps.package.outputs.tarball }}
         run: |
@@ -428,7 +481,23 @@ jobs:
             --deny-self-hosted-runners \
             --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "$SIGNER_WORKFLOW" \
-            --predicate-type "$FORK_LINEAGE_PREDICATE_TYPE"
+            --predicate-type "$FORK_LINEAGE_PREDICATE_TYPE" \
+            --format=json > "$LINEAGE_VERIFICATION"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+
+          const expected = JSON.parse(readFileSync(process.env.LINEAGE_PATH, 'utf8'))
+          const results = JSON.parse(
+            readFileSync(process.env.LINEAGE_VERIFICATION, 'utf8'),
+          )
+          assert.equal(results.length, 1, 'expected one fork-lineage attestation')
+          assert.deepEqual(
+            results[0].verificationResult.statement.predicate,
+            expected,
+            'signed fork-lineage predicate differs from the validated predicate',
+          )
+          NODE
       - name: Upload engine artifacts
         uses: actions/upload-artifact@v4
         with:

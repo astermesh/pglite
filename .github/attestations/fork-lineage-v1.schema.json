@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/astermesh/pglite/blob/astermesh/ci/.github/attestations/fork-lineage-v1.schema.json",
+  "$id": "https://github.com/astermesh/pglite/attestations/fork-lineage/v1",
   "title": "AsterMesh PGlite fork lineage",
   "description": "Identifies the upstream and AsterMesh wrapper and engine revisions, plus the native build toolchain, used to produce an AsterMesh PGlite package.",
   "type": "object",
