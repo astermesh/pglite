@@ -180,6 +180,53 @@ jobs:
             echo "sdk_version=$SDK_VERSION"
             echo "builder_image=$BUILDER_IMAGE"
           } >> "$GITHUB_OUTPUT"
+      - name: Verify release version is new
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
+          VERSION_ERROR: ${{ runner.temp }}/pglite-versions.err
+          VERSION_REPORT: ${{ runner.temp }}/pglite-versions.json
+        run: |
+          set -euo pipefail
+          if npm view '@astermesh/pglite' versions --json \
+            --registry='https://npm.pkg.github.com' \
+            > "$VERSION_REPORT" 2> "$VERSION_ERROR"
+          then
+            :
+          elif grep -q 'E404' "$VERSION_ERROR"; then
+            printf '[]\n' > "$VERSION_REPORT"
+          else
+            cat "$VERSION_ERROR" >&2
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+
+          const report = JSON.parse(readFileSync(process.env.VERSION_REPORT, 'utf8'))
+          const versions = Array.isArray(report) ? report : [report]
+          const parse = (version) => {
+            const match = /^([0-9]+)\.([0-9]+)\.([0-9]+)$/.exec(version)
+            return match && match.slice(1).map(Number)
+          }
+          const release = parse(process.env.RELEASE_VERSION)
+          const sameLine = versions
+            .map((version) => [version, parse(version)])
+            .filter(([, parsed]) =>
+              parsed && parsed[0] === release[0] && parsed[1] === release[1],
+            )
+          if (sameLine.some(([version]) => version === process.env.RELEASE_VERSION)) {
+            throw new Error(`package version already exists: ${process.env.RELEASE_VERSION}`)
+          }
+          const newestPatch = sameLine.reduce(
+            (newest, [, parsed]) => Math.max(newest, parsed[2]),
+            -1,
+          )
+          if (release[2] <= newestPatch) {
+            throw new Error(
+              `package version ${process.env.RELEASE_VERSION} is not newer than its release line`,
+            )
+          }
+          NODE
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Set release version
@@ -187,7 +234,10 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
         run: |
-          npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts
+          npm version "$RELEASE_VERSION" \
+            --no-git-tag-version \
+            --ignore-scripts \
+            --allow-same-version
           npm pkg set repository.url='https://github.com/astermesh/pglite.git'
       - name: Build engine
         env:
@@ -260,15 +310,26 @@ jobs:
             'Emscripten SDK': process.env.SDK_VERSION,
             'Workflow run': process.env.EXPECTED_RUN_URL,
           }
-          const paths = new Set(pack.files.map((file) => file.path))
+          const requiredPaths = [
+            'PROVENANCE.md',
+            'dist/index.cjs',
+            'dist/index.d.ts',
+            'dist/index.js',
+            'dist/pglite.data',
+            'dist/pglite.js',
+            'dist/pglite.wasm',
+          ]
           if (pack.name !== '@astermesh/pglite') {
             throw new Error(`unexpected package name: ${pack.name}`)
           }
           if (pack.version !== process.env.RELEASE_VERSION) {
             throw new Error(`unexpected package version: ${pack.version}`)
           }
-          if (!paths.has('PROVENANCE.md')) {
-            throw new Error('PROVENANCE.md is missing from the package')
+          for (const path of requiredPaths) {
+            const file = pack.files.find((candidate) => candidate.path === path)
+            if (!file || file.size <= 0) {
+              throw new Error(`required package file is missing or empty: ${path}`)
+            }
           }
 
           const provenance = readFileSync('PROVENANCE.md', 'utf8')
