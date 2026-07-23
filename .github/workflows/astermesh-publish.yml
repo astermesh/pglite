@@ -38,7 +38,7 @@ jobs:
             node -p "require('./packages/pglite/package.json').version"
           )"
           if [[ "$BEFORE_COMMIT" == '0000000000000000000000000000000000000000' ]]; then
-            PREVIOUS_VERSION="$CURRENT_VERSION"
+            PREVIOUS_VERSION='<new branch>'
           else
             PREVIOUS_VERSION="$(
               git show "${BEFORE_COMMIT}:packages/pglite/package.json" |
@@ -46,16 +46,23 @@ jobs:
             )"
           fi
 
-          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ||
-                ! "$PREVIOUS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           then
-            echo "::error::package versions must be stable semver"
+            echo "::error::current package version must be stable semver"
             exit 1
           fi
-          if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-          else
+          if [[ "$BEFORE_COMMIT" != '0000000000000000000000000000000000000000' &&
+                ! "$PREVIOUS_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          then
+            echo "::error::previous package version must be stable semver"
+            exit 1
+          fi
+          if [[ "$BEFORE_COMMIT" == '0000000000000000000000000000000000000000' ||
+                "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]]
+          then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
           {
             echo "previous=$PREVIOUS_VERSION"
