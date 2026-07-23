@@ -160,8 +160,7 @@
   "type": "module",
   "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "PROVENANCE.md"
+    "dist"
   ],
   "repository": {
     "type": "git",
