@@ -3,7 +3,9 @@ run-name: publish ${{ inputs.line || inputs.ref }} from ${{ inputs.ref }}
 
 permissions:
   contents: read
+  id-token: write
   packages: write
+  attestations: write
 
 on:
   workflow_dispatch:
@@ -43,6 +45,7 @@ jobs:
     timeout-minutes: 45
     env:
       BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
+      FORK_LINEAGE_PREDICATE_TYPE: https://github.com/astermesh/pglite/blob/astermesh/ci/.github/attestations/fork-lineage-v1.schema.json
       RELEASE_LINE: ${{ inputs.line || inputs.ref }}
       REQUESTED_VERSION: ${{ inputs.version }}
       TZ: UTC
@@ -171,7 +174,8 @@ jobs:
 
           {
             echo "release_version=$RELEASE_VERSION"
-            echo "upstream_package=$UPSTREAM_PACKAGE_NAME@$UPSTREAM_PACKAGE_VERSION"
+            echo "upstream_package_name=$UPSTREAM_PACKAGE_NAME"
+            echo "upstream_package_version=$UPSTREAM_PACKAGE_VERSION"
             echo "upstream_wrapper_commit=$UPSTREAM_WRAPPER_COMMIT"
             echo "source_commit=$SOURCE_COMMIT"
             echo "upstream_engine_pin=$UPSTREAM_ENGINE_PIN"
@@ -245,17 +249,23 @@ jobs:
         run: pnpm wasm:build
       - name: Build package
         run: pnpm --filter "./packages/pglite..." build
-      - name: Write provenance
+      - name: Check package exports
+        working-directory: packages/pglite
+        run: pnpm check:exports
+      - name: Write fork lineage predicate
+        id: lineage
         env:
+          BUILDER_IMAGE: ${{ steps.release.outputs.builder_image }}
+          ENGINE_LINE_COMMIT: ${{ steps.release.outputs.engine_commit }}
+          LINEAGE_PATH: ${{ runner.temp }}/pglite-fork-lineage.json
+          PG_VERSION: ${{ steps.release.outputs.pg_version }}
           RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
-          UPSTREAM_PACKAGE: ${{ steps.release.outputs.upstream_package }}
+          SDK_VERSION: ${{ steps.release.outputs.sdk_version }}
+          UPSTREAM_ENGINE_PIN: ${{ steps.release.outputs.upstream_engine_pin }}
+          UPSTREAM_PACKAGE_NAME: ${{ steps.release.outputs.upstream_package_name }}
+          UPSTREAM_PACKAGE_VERSION: ${{ steps.release.outputs.upstream_package_version }}
           UPSTREAM_WRAPPER_COMMIT: ${{ steps.release.outputs.upstream_wrapper_commit }}
           WRAPPER_LINE_COMMIT: ${{ steps.release.outputs.source_commit }}
-          UPSTREAM_ENGINE_PIN: ${{ steps.release.outputs.upstream_engine_pin }}
-          ENGINE_LINE_COMMIT: ${{ steps.release.outputs.engine_commit }}
-          PG_VERSION: ${{ steps.release.outputs.pg_version }}
-          SDK_VERSION: ${{ steps.release.outputs.sdk_version }}
-          BUILDER_IMAGE: ${{ steps.release.outputs.builder_image }}
         run: |
           set -euo pipefail
           BUILDER_DIGEST="$(
@@ -266,52 +276,93 @@ jobs:
             echo "::error::invalid builder digest: $BUILDER_DIGEST"
             exit 1
           fi
-          cat > packages/pglite/PROVENANCE.md <<EOF
-          # Build provenance
+          export BUILDER_DIGEST
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs'
 
-          - Package: \`@astermesh/pglite@$RELEASE_VERSION\`
-          - Upstream package: \`$UPSTREAM_PACKAGE\`
-          - Upstream wrapper release: \`$UPSTREAM_WRAPPER_COMMIT\`
-          - Wrapper line commit: \`$WRAPPER_LINE_COMMIT\`
-          - Upstream engine pin: \`$UPSTREAM_ENGINE_PIN\`
-          - Engine line commit: \`$ENGINE_LINE_COMMIT\`
-          - PostgreSQL: \`$PG_VERSION\`
-          - Emscripten SDK: \`$SDK_VERSION\`
-          - Builder: \`$BUILDER_DIGEST\`
-          - Workflow run: \`$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\`
-          EOF
-      - name: Verify publish payload
+          const required = (name, pattern) => {
+            const value = process.env[name]
+            if (!value || (pattern && !pattern.test(value))) {
+              throw new Error(`invalid fork lineage value: ${name}`)
+            }
+            return value
+          }
+          const commit = /^[0-9a-f]{40}([0-9a-f]{24})?$/
+          const version = /^[0-9]+\.[0-9]+\.[0-9]+$/
+          const predicate = {
+            schemaVersion: 1,
+            releaseLine: required(
+              'RELEASE_LINE',
+              /^astermesh\/v[0-9]+\.[0-9]+$/,
+            ),
+            package: {
+              name: '@astermesh/pglite',
+              version: required('RELEASE_VERSION', version),
+            },
+            wrapper: {
+              upstream: {
+                repository: 'https://github.com/electric-sql/pglite',
+                packageName: required('UPSTREAM_PACKAGE_NAME'),
+                version: required('UPSTREAM_PACKAGE_VERSION', version),
+                commit: required('UPSTREAM_WRAPPER_COMMIT', commit),
+              },
+              astermesh: {
+                repository: 'https://github.com/astermesh/pglite',
+                commit: required('WRAPPER_LINE_COMMIT', commit),
+              },
+            },
+            engine: {
+              upstream: {
+                repository: 'https://github.com/electric-sql/postgres-pglite',
+                commit: required('UPSTREAM_ENGINE_PIN', commit),
+              },
+              astermesh: {
+                repository: 'https://github.com/astermesh/postgres-pglite',
+                commit: required('ENGINE_LINE_COMMIT', commit),
+              },
+            },
+            build: {
+              postgresqlVersion: required('PG_VERSION'),
+              emscriptenSdkVersion: required('SDK_VERSION'),
+              builderImage: {
+                reference: required('BUILDER_IMAGE'),
+                digest: required(
+                  'BUILDER_DIGEST',
+                  /^[^@\s]+@sha256:[0-9a-f]{64}$/,
+                ),
+              },
+            },
+          }
+          writeFileSync(
+            process.env.LINEAGE_PATH,
+            `${JSON.stringify(predicate, null, 2)}\n`,
+          )
+          NODE
+          echo "predicate=$LINEAGE_PATH" >> "$GITHUB_OUTPUT"
+      - name: Pack and verify publish payload
+        id: package
         working-directory: packages/pglite
         env:
           PACK_REPORT: ${{ runner.temp }}/pglite-pack.json
           RELEASE_VERSION: ${{ steps.release.outputs.release_version }}
-          UPSTREAM_PACKAGE: ${{ steps.release.outputs.upstream_package }}
-          UPSTREAM_WRAPPER_COMMIT: ${{ steps.release.outputs.upstream_wrapper_commit }}
-          WRAPPER_LINE_COMMIT: ${{ steps.release.outputs.source_commit }}
-          UPSTREAM_ENGINE_PIN: ${{ steps.release.outputs.upstream_engine_pin }}
-          ENGINE_LINE_COMMIT: ${{ steps.release.outputs.engine_commit }}
-          PG_VERSION: ${{ steps.release.outputs.pg_version }}
-          SDK_VERSION: ${{ steps.release.outputs.sdk_version }}
-          EXPECTED_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TARBALL_DIRECTORY: ${{ runner.temp }}/pglite-package
         run: |
-          npm pack --dry-run --json > "$PACK_REPORT"
+          set -euo pipefail
+          mkdir -p "$TARBALL_DIRECTORY"
+          npm pack --json \
+            --pack-destination "$TARBALL_DIRECTORY" \
+            > "$PACK_REPORT"
           node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs'
+          import {
+            appendFileSync,
+            readFileSync,
+            realpathSync,
+            statSync,
+          } from 'node:fs'
+          import { basename, resolve } from 'node:path'
 
           const [pack] = JSON.parse(readFileSync(process.env.PACK_REPORT, 'utf8'))
-          const expected = {
-            Package: `@astermesh/pglite@${process.env.RELEASE_VERSION}`,
-            'Upstream package': process.env.UPSTREAM_PACKAGE,
-            'Upstream wrapper release': process.env.UPSTREAM_WRAPPER_COMMIT,
-            'Wrapper line commit': process.env.WRAPPER_LINE_COMMIT,
-            'Upstream engine pin': process.env.UPSTREAM_ENGINE_PIN,
-            'Engine line commit': process.env.ENGINE_LINE_COMMIT,
-            PostgreSQL: process.env.PG_VERSION,
-            'Emscripten SDK': process.env.SDK_VERSION,
-            'Workflow run': process.env.EXPECTED_RUN_URL,
-          }
           const requiredPaths = [
-            'PROVENANCE.md',
             'dist/index.cjs',
             'dist/index.d.ts',
             'dist/index.js',
@@ -331,17 +382,53 @@ jobs:
               throw new Error(`required package file is missing or empty: ${path}`)
             }
           }
-
-          const provenance = readFileSync('PROVENANCE.md', 'utf8')
-          for (const [field, value] of Object.entries(expected)) {
-            if (!provenance.includes(`- ${field}: \`${value}\``)) {
-              throw new Error(`missing or invalid provenance field: ${field}`)
-            }
+          if (!pack.filename || basename(pack.filename) !== pack.filename) {
+            throw new Error(`invalid package filename: ${pack.filename}`)
           }
-          if (!/- Builder: `[^`]+@sha256:[0-9a-f]{64}`/.test(provenance)) {
-            throw new Error('missing or invalid provenance field: Builder')
+          const tarball = realpathSync(
+            resolve(process.env.TARBALL_DIRECTORY, pack.filename),
+          )
+          if (statSync(tarball).size <= 0) {
+            throw new Error('package tarball is empty')
           }
+          appendFileSync(process.env.GITHUB_OUTPUT, `tarball=${tarball}\n`)
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `filename=${pack.filename}\n`,
+          )
           NODE
+      - name: Attest package build provenance
+        id: build-attestation
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: ${{ steps.package.outputs.tarball }}
+      - name: Attest package fork lineage
+        id: lineage-attestation
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: ${{ steps.package.outputs.tarball }}
+          predicate-type: ${{ env.FORK_LINEAGE_PREDICATE_TYPE }}
+          predicate-path: ${{ steps.lineage.outputs.predicate }}
+      - name: Verify package attestations
+        env:
+          BUILD_BUNDLE: ${{ steps.build-attestation.outputs.bundle-path }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAGE_BUNDLE: ${{ steps.lineage-attestation.outputs.bundle-path }}
+          SIGNER_WORKFLOW: astermesh/pglite/.github/workflows/build.yml
+          TARBALL: ${{ steps.package.outputs.tarball }}
+        run: |
+          gh attestation verify "$TARBALL" \
+            --bundle "$BUILD_BUNDLE" \
+            --deny-self-hosted-runners \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$SIGNER_WORKFLOW" \
+            --predicate-type 'https://slsa.dev/provenance/v1'
+          gh attestation verify "$TARBALL" \
+            --bundle "$LINEAGE_BUNDLE" \
+            --deny-self-hosted-runners \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$SIGNER_WORKFLOW" \
+            --predicate-type "$FORK_LINEAGE_PREDICATE_TYPE"
       - name: Upload engine artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -354,8 +441,15 @@ jobs:
           name: pglite-dist-${{ steps.release.outputs.release_version }}
           path: packages/pglite/dist/**
           retention-days: 60
+      - name: Upload package tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: pglite-package-${{ steps.release.outputs.release_version }}
+          path: ${{ steps.package.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 60
       - name: Publish package
-        working-directory: packages/pglite
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish
+          TARBALL: ${{ steps.package.outputs.tarball }}
+        run: npm publish "$TARBALL" --registry='https://npm.pkg.github.com'

@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/astermesh/pglite/blob/astermesh/ci/.github/attestations/fork-lineage-v1.schema.json",
+  "title": "AsterMesh PGlite fork lineage",
+  "description": "Identifies the upstream and AsterMesh wrapper and engine revisions, plus the native build toolchain, used to produce an AsterMesh PGlite package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "releaseLine",
+    "package",
+    "wrapper",
+    "engine",
+    "build"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "releaseLine": {
+      "type": "string",
+      "pattern": "^astermesh/v[0-9]+\\.[0-9]+$"
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "@astermesh/pglite"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "wrapper": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream",
+        "astermesh"
+      ],
+      "properties": {
+        "upstream": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "packageName",
+            "version",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "https://github.com/electric-sql/pglite"
+            },
+            "packageName": {
+              "const": "@electric-sql/pglite"
+            },
+            "version": {
+              "$ref": "#/$defs/version"
+            },
+            "commit": {
+              "$ref": "#/$defs/commit"
+            }
+          }
+        },
+        "astermesh": {
+          "$ref": "#/$defs/astermeshWrapper"
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream",
+        "astermesh"
+      ],
+      "properties": {
+        "upstream": {
+          "$ref": "#/$defs/upstreamEngine"
+        },
+        "astermesh": {
+          "$ref": "#/$defs/astermeshEngine"
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "postgresqlVersion",
+        "emscriptenSdkVersion",
+        "builderImage"
+      ],
+      "properties": {
+        "postgresqlVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "emscriptenSdkVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "builderImage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reference",
+            "digest"
+          ],
+          "properties": {
+            "reference": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "astermeshWrapper": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "https://github.com/astermesh/pglite"
+        },
+        "commit": {
+          "$ref": "#/$defs/commit"
+        }
+      }
+    },
+    "upstreamEngine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "https://github.com/electric-sql/postgres-pglite"
+        },
+        "commit": {
+          "$ref": "#/$defs/commit"
+        }
+      }
+    },
+    "astermeshEngine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "const": "https://github.com/astermesh/postgres-pglite"
+        },
+        "commit": {
+          "$ref": "#/$defs/commit"
+        }
+      }
+    }
+  }
+}
