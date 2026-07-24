@@ -5,7 +5,7 @@ This package implements Vue hooks for [PGLite](https://pglite.dev/) on top of th
 To install:
 
 ```sh
-npm install @electric-sql/pglite-vue
+npm install @astermesh/pglite-vue
 ```
 
 The hooks this package provides are:

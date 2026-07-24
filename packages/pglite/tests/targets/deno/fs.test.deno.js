@@ -1,5 +1,5 @@
 import { assertEquals } from 'https://deno.land/std@0.202.0/testing/asserts.ts'
-import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@astermesh/pglite'
 
 Deno.test('filesystem new', async () => {
   const db = new PGlite('./pgdata-test')

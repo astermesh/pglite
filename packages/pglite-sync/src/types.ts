@@ -5,7 +5,7 @@ import type {
   ChangeMessage,
   FetchError,
 } from '@electric-sql/client'
-import { Transaction } from '@electric-sql/pglite'
+import { Transaction } from '@astermesh/pglite'
 
 export type Lsn = bigint
 

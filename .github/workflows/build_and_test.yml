@@ -125,7 +125,7 @@ jobs:
           pnpm exec playwright install --with-deps
 
       - name: Build dependencies
-        run: pnpm --filter "pglite^..." build
+        run: pnpm --filter "@astermesh/pglite^..." build
 
       - name: Typecheck
         run: pnpm typecheck
@@ -155,7 +155,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pglite-package-node-v${{ matrix.node }}
-          path: ./packages/pglite/electric-sql-pglite-*.tgz
+          path: ./packages/pglite/astermesh-pglite-*.tgz
           retention-days: 60
 
       - name: Find Comment
@@ -209,16 +209,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build pg-protocol
-        run: pnpm --filter "@electric-sql/pg-protocol" build
+        run: pnpm --filter "@astermesh/pg-protocol" build
 
       - name: Build packages
-        run: pnpm --filter="...^pglite" build
+        run: pnpm --filter="...^@astermesh/pglite" build
 
       - name: Typecheck packages
-        run: pnpm --filter="...^pglite" typecheck
+        run: pnpm --filter="...^@astermesh/pglite" typecheck
 
       - name: Test packages
-        run: pnpm --filter="...^pglite" test
+        run: pnpm --filter="...^@astermesh/pglite" test
 
       - name: Upload pglite-tools distribution artifact
         id: upload-pglite-tools-dist
@@ -264,7 +264,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build REPL and benchmark packages needed for examples
-        run: pnpm --filter "@electric-sql/pglite-react" --filter "@electric-sql/pglite-repl" --filter "benchmark"  build
+        run: pnpm --filter "@astermesh/pglite-react" --filter "@astermesh/pglite-repl" --filter "benchmark"  build
 
       - name: Download PGlite web build artifacts
         uses: actions/download-artifact@v4

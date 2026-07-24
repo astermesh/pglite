@@ -7,8 +7,8 @@
 The AGE extension is included with PGlite. To use it:
 
 ```typescript
-import { PGlite } from '@electric-sql/pglite'
-import { age } from '@electric-sql/pglite/age'
+import { PGlite } from '@astermesh/pglite'
+import { age } from '@astermesh/pglite/age'
 
 const pg = new PGlite({
   extensions: {

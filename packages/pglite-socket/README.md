@@ -14,18 +14,18 @@ Note: Although PGlite is a single-connection database, it is possible to open an
 ## Installation
 
 ```bash
-npm install @electric-sql/pglite-socket
+npm install @astermesh/pglite-socket
 # or
-yarn add @electric-sql/pglite-socket
+yarn add @astermesh/pglite-socket
 # or
-pnpm add @electric-sql/pglite-socket
+pnpm add @astermesh/pglite-socket
 ```
 
 ## Usage
 
 ```typescript
-import { PGlite } from '@electric-sql/pglite'
-import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
+import { PGlite } from '@astermesh/pglite'
+import { PGLiteSocketServer } from '@astermesh/pglite-socket'
 
 // Create a PGlite instance
 const db = await PGlite.create()
@@ -100,8 +100,8 @@ Low-level handler for a single socket connection to PGlite. This class handles t
 #### Example
 
 ```typescript
-import { PGlite } from '@electric-sql/pglite'
-import { PGLiteSocketHandler } from '@electric-sql/pglite-socket'
+import { PGlite } from '@astermesh/pglite'
+import { PGLiteSocketHandler } from '@astermesh/pglite-socket'
 import { createServer, Socket } from 'net'
 
 // Create a PGlite instance
@@ -138,7 +138,7 @@ This package provides a command-line interface for quickly starting a PGlite soc
 
 ```bash
 # Install globally
-npm install -g @electric-sql/pglite-socket
+npm install -g @astermesh/pglite-socket
 
 # Start a server with default settings (in-memory database, port 5432)
 pglite-server

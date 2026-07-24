@@ -1,5 +1,13 @@
 # Getting started with PGlite
 
+This documentation describes the AsterMesh fork of
+[ElectricSQL PGlite](https://github.com/electric-sql/pglite). Its packages use
+the `@astermesh` scope and are hosted on GitHub Packages, which requires
+authentication even for public npm packages. Configure the scope and a token
+with `read:packages` by following
+[GitHub's npm registry instructions](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)
+before installing.
+
 PGlite can be used in both Node/Bun/Deno or the browser, and with any JavaScript framework.
 
 ## Install and start in Node/Bun/Deno
@@ -9,23 +17,23 @@ Install into your project:
 ::: code-group
 
 ```bash [npm]
-npm install @electric-sql/pglite
+npm install @astermesh/pglite
 ```
 
 ```bash [pnpm]
-pnpm install @electric-sql/pglite
+pnpm install @astermesh/pglite
 ```
 
 ```bash [yarn]
-yarn add @electric-sql/pglite
+yarn add @astermesh/pglite
 ```
 
 ```bash [bun]
-bun install @electric-sql/pglite
+bun install @astermesh/pglite
 ```
 
 ```bash [deno]
-deno add npm:@electric-sql/pglite
+deno add npm:@astermesh/pglite
 ```
 
 :::
@@ -33,7 +41,7 @@ deno add npm:@electric-sql/pglite
 To use the in-memory Postgres:
 
 ```js
-import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@astermesh/pglite'
 
 const db = new PGlite()
 ```
@@ -49,13 +57,7 @@ const db = new PGlite('./path/to/pgdata')
 It can be installed and imported using your usual package manager:
 
 ```js
-import { PGlite } from '@electric-sql/pglite'
-```
-
-or using a CDN such as JSDeliver:
-
-```js
-import { PGlite } from 'https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js'
+import { PGlite } from '@astermesh/pglite'
 ```
 
 Then for an in-memory Postgres:

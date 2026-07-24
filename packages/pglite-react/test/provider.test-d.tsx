@@ -1,7 +1,7 @@
 import { describe, it, expectTypeOf } from 'vitest'
-import { PGlite, PGliteInterfaceExtensions } from '@electric-sql/pglite'
-import { live } from '@electric-sql/pglite/live'
-import { vector } from '@electric-sql/pglite/vector'
+import { PGlite, PGliteInterfaceExtensions } from '@astermesh/pglite'
+import { live } from '@astermesh/pglite/live'
+import { vector } from '@astermesh/pglite/vector'
 import { makePGliteProvider } from '../src/provider.js'
 
 describe('provider', () => {

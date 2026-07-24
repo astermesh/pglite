@@ -1,11 +1,12 @@
 {
-  "name": "@electric-sql/pglite-react",
+  "name": "@astermesh/pglite-react",
   "version": "0.2.34",
   "description": "Hooks for using PGlite",
   "type": "module",
   "private": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   },
   "keywords": [
     "postgres",
@@ -21,7 +22,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/electric-sql/pglite.git",
+    "url": "git+https://github.com/astermesh/pglite.git",
     "directory": "packages/pglite-react"
   },
   "scripts": {
@@ -50,11 +51,13 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE"
   ],
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
-    "@electric-sql/pglite": "workspace:*",
+    "@astermesh/pglite": "workspace:*",
     "@eslint-react/eslint-plugin": "^1.14.3",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.1.0",
@@ -69,7 +72,7 @@
     "vitest": "^2.1.2"
   },
   "peerDependencies": {
-    "@electric-sql/pglite": "workspace:0.3.16",
+    "@astermesh/pglite": "workspace:^",
     "react": "^18.0.0 || ^19.0.0 || ^19.0.0-rc"
   }
 }

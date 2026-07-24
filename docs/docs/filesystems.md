@@ -22,7 +22,7 @@ To use the in-memory FS you can use one of these methods:
   ```
 - Import and pass the FS explicitly
   ```ts
-  import { MemoryFS } from '@electric-sql/pglite'
+  import { MemoryFS } from '@astermesh/pglite'
   const pg = new PGlite({
     fs: new MemoryFS(),
   })
@@ -46,7 +46,7 @@ To use the Node FS you can use one of these methods:
   ```
 - Import and pass the FS explicitly
   ```ts
-  import { NodeFS } from '@electric-sql/pglite'
+  import { NodeFS } from '@astermesh/pglite'
   const pg = new PGlite({
     fs: new NodeFS('./path/to/datadir/'),
   })
@@ -70,7 +70,7 @@ To use the IndexedDB FS you can use one of these methods:
   ```
 - Import and pass the FS explicitly
   ```ts
-  import { IdbFs } from '@electric-sql/pglite'
+  import { IdbFs } from '@astermesh/pglite'
   const pg = new PGlite({
     fs: new IdbFs('my-database'),
   })
@@ -96,7 +96,7 @@ To use the OPFS AHP FS you can use one of these methods:
   ```
 - Import and pass the FS explicitly
   ```ts
-  import { OpfsAhpFS } from '@electric-sql/pglite/opfs-ahp'
+  import { OpfsAhpFS } from '@astermesh/pglite/opfs-ahp'
   const pg = new PGlite({
     fs: new OpfsAhpFS('./path/to/datadir/'),
   })

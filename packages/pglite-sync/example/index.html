@@ -7,9 +7,9 @@
     <script type="importmap">
       {
         "imports": {
-          "@electric-sql/pglite": "../../pglite/dist/index.js",
-          "@electric-sql/pglite/live": "../../pglite/dist/live/index.js",
-          "@electric-sql/pglite/sync": "../dist/index.js",
+          "@astermesh/pglite": "../../pglite/dist/index.js",
+          "@astermesh/pglite/live": "../../pglite/dist/live/index.js",
+          "@astermesh/pglite/sync": "../dist/index.js",
           "@electric-sql/client": "../node_modules/@electric-sql/client/dist/index.browser.mjs",
           "@electric-sql/experimental": "../node_modules/@electric-sql/experimental/dist/index.browser.mjs"
         }
@@ -34,9 +34,9 @@
 <div id="output"></div>
 <div class="script-plus-log">
 <script type="module">
-  import { PGlite } from "@electric-sql/pglite";
-  import { electricSync } from "@electric-sql/pglite/sync";
-  import { live } from "@electric-sql/pglite/live";
+  import { PGlite } from "@astermesh/pglite";
+  import { electricSync } from "@astermesh/pglite/sync";
+  import { live } from "@astermesh/pglite/live";
 
   const pg = await PGlite.create({
     extensions: {

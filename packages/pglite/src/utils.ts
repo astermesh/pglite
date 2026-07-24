@@ -1,5 +1,5 @@
 import type { PGliteInterface, Transaction } from './interface.js'
-import { serialize as serializeProtocol } from '@electric-sql/pg-protocol'
+import { serialize as serializeProtocol } from '@astermesh/pg-protocol'
 import { parseDescribeStatementResults } from './parse.js'
 import { TEXT } from './types.js'
 

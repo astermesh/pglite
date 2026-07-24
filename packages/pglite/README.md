@@ -31,12 +31,18 @@
 
 # PGlite - Postgres in WASM
 
+> [!NOTE]
+> This package is part of the AsterMesh fork of
+> [ElectricSQL PGlite](https://github.com/electric-sql/pglite). Fork packages
+> use the `@astermesh` scope; original authorship remains attributed to
+> Electric DB Limited.
+
 ![PGlite](https://raw.githubusercontent.com/electric-sql/pglite/main/screenshot.png)
 
 PGlite is a WASM Postgres build packaged into a TypeScript client library that enables you to run Postgres in the browser, Node.js, Bun and Deno, with no need to install any other dependencies. It is only 3mb gzipped and has support for many Postgres extensions, including [pgvector](https://github.com/pgvector/pgvector).
 
 ```javascript
-import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@astermesh/pglite'
 
 const db = new PGlite()
 await db.query("select 'Hello world' as message;")
@@ -54,13 +60,7 @@ For full documentation and user guides see [pglite.dev](https://pglite.dev).
 It can be installed and imported using your usual package manager:
 
 ```js
-import { PGlite } from '@electric-sql/pglite'
-```
-
-or using a CDN such as JSDeliver:
-
-```js
-import { PGlite } from 'https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js'
+import { PGlite } from '@astermesh/pglite'
 ```
 
 Then for an in-memory Postgres:
@@ -81,28 +81,34 @@ const db = new PGlite('idb://my-pgdata')
 
 Install into your project:
 
+The packages are hosted on GitHub Packages. Configure the `@astermesh` scope
+for `https://npm.pkg.github.com` and authenticate with a token carrying
+`read:packages` before installing. GitHub requires authentication for public
+npm packages as well; see
+[GitHub's npm registry instructions](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry).
+
 **NodeJS**
 
 ```bash
-npm install @electric-sql/pglite
+npm install @astermesh/pglite
 ```
 
 **Bun**
 
 ```bash
-bun install @electric-sql/pglite
+bun install @astermesh/pglite
 ```
 
 **Deno**
 
 ```bash
-deno add npm:@electric-sql/pglite
+deno add npm:@astermesh/pglite
 ```
 
 To use the in-memory Postgres:
 
 ```javascript
-import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@astermesh/pglite'
 
 const db = new PGlite()
 await db.query("select 'Hello world' as message;")
@@ -137,7 +143,7 @@ Docker is required to build the WASM module, along with Node (v20 or above) and 
 To start checkout the repository and install dependencies:
 
 ```bash
-git clone https://github.com/electric-sql/pglite
+git clone --recurse-submodules https://github.com/astermesh/pglite
 cd pglite
 pnpm install
 ```
