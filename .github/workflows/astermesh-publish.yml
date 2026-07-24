@@ -1,0 +1,51 @@
+name: publish AsterMesh package family
+
+permissions:
+  artifact-metadata: write
+  attestations: write
+  contents: write
+  id-token: write
+  packages: write
+
+on:
+  push:
+    branches:
+      - "astermesh/v*"
+    paths:
+      - "packages/*/package.json"
+
+jobs:
+  detect:
+    name: Detect package version changes
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.versions.outputs.publish }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout release tooling
+        uses: actions/checkout@v4
+        with:
+          repository: astermesh/pglite
+          ref: astermesh/ci
+          sparse-checkout: .github
+          path: .astermesh-ci
+      - name: Detect version changes
+        id: versions
+        env:
+          AFTER_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node .astermesh-ci/.github/scripts/detect-version-change.mjs
+
+  publish:
+    name: Publish changed package versions
+    needs: detect
+    if: needs.detect.outputs.publish == 'true'
+    uses: astermesh/pglite/.github/workflows/build.yml@astermesh/ci
+    with:
+      ref: ${{ github.sha }}
+      line: ${{ github.ref_name }}
+      promote_latest: false
+    secrets: inherit
