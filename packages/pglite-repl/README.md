@@ -15,14 +15,14 @@ A REPL, or terminal, for use in the browser with PGlite, allowing you to have an
 ## How to use with React
 
 ```
-npm install @electric-sql/pglite-repl
+npm install @astermesh/pglite-repl
 ```
 
 then to include in a page:
 
 ```tsx
-import { PGlite } from "@electric-sql/pglite";
-import { Repl } from "@electric-sql/pglite-repl";
+import { PGlite } from "@astermesh/pglite";
+import { Repl } from "@astermesh/pglite-repl";
 
 function MyComponent() {
   const pg = new PGlite();
@@ -52,16 +52,16 @@ The `lightTheme` and `darkTheme` should be instances of a [React CodeMirror](htt
 
 ## How to use as a Web Component
 
-Although the PGlite REPL is built with React, its also available as a web component for easy inclusion in any page or other framework.
+Although the PGlite REPL is built with React, it is also available as a web
+component for easy inclusion in a bundled application or another framework.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist-webcomponent/Repl.js" type="module"></script>
-
 <!-- Include the Repl web component in your page -->
 <pglite-repl id="repl"></pglite-repl>
 
 <script type="module">
-  import { PGlite } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js";
+  import { PGlite } from "@astermesh/pglite";
+  import "@astermesh/pglite-repl/webcomponent";
 
   // Create a PGlite instance
   const pg = new PGlite();

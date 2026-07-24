@@ -63,12 +63,12 @@ databases, including PGlite. Features include:
 To use PGlite with Drizzle, wrap you PGlite instance with a `drizzle()` call:
 
 ```sh
-npm i drizzle-orm @electric-sql/pglite
+npm i drizzle-orm @astermesh/pglite
 npm i -D drizzle-kit
 ```
 
 ```ts
-import { PGlite } from '@electric-sql/pglite';
+import { PGlite } from '@astermesh/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 
 const client = new PGlite();
@@ -94,7 +94,7 @@ To use Knex.js with PGlite, add knex and the third party [knex-pglite](https://g
 library to your project:
 
 ```bash
-npm i @electric-sql/pglite knex knex-pglite
+npm i @astermesh/pglite knex knex-pglite
 ```
 
 Then you can setup a regular Knex instance:
@@ -127,7 +127,7 @@ To use Orange ORM with PGlite, add [orange-orm](https://github.com/alfateam/oran
 library to your project:
 
 ```bash
-npm i @electric-sql/pglite orange-orm
+npm i @astermesh/pglite orange-orm
 ```
 
 ```javascript
@@ -171,7 +171,7 @@ To use TypeORM with PGlite, add the third party [typeorm-pglite](https://www.npm
 library to your project:
 
 ```bash
-npm i @electric-sql/pglite typeorm-pglite
+npm i @astermesh/pglite typeorm-pglite
 ```
 
 typeorm-pglite works with TypeORM's existing postgres dialect. Just provide the PGliteDriver to the driver data source option:

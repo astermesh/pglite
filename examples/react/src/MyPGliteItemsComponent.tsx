@@ -1,4 +1,4 @@
-import { useLiveQuery } from '@electric-sql/pglite-react'
+import { useLiveQuery } from '@astermesh/pglite-react'
 
 function MyPGliteItemsComponent() {
   const maxNumber = 1000

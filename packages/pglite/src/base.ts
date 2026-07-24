@@ -19,13 +19,13 @@ import type {
   DescribeQueryResult,
 } from './interface.js'
 
-import { serialize as serializeProtocol } from '@electric-sql/pg-protocol'
+import { serialize as serializeProtocol } from '@astermesh/pg-protocol'
 import {
   RowDescriptionMessage,
   ParameterDescriptionMessage,
   DatabaseError,
   BackendMessage,
-} from '@electric-sql/pg-protocol/messages'
+} from '@astermesh/pg-protocol/messages'
 import { makePGliteError } from './errors.js'
 
 export abstract class BasePGlite

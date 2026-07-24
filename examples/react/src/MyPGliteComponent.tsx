@@ -1,4 +1,4 @@
-import { usePGlite } from '@electric-sql/pglite-react'
+import { usePGlite } from '@astermesh/pglite-react'
 import MyPGliteItemsComponent from './MyPGliteItemsComponent'
 
 const names = [

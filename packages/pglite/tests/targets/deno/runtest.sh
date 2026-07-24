@@ -1,7 +1,6 @@
 #!/bin/bash
 rm -rf ./pgdata-test ./node_modules
-deno install
-mkdir -p ./node_modules/@electric-sql/pglite/dist
-cp -Rf ../../../dist/* node_modules/@electric-sql/pglite/dist/
-TZ=UTC deno test --allow-read --allow-write --allow-env --allow-sys --node-modules-dir ./*.test.deno.js
-
+mkdir -p ./node_modules/@astermesh/pglite/dist
+cp ../../../package.json ./node_modules/@astermesh/pglite/package.json
+cp -Rf ../../../dist/* node_modules/@astermesh/pglite/dist/
+TZ=UTC deno test --allow-read --allow-write --allow-env --allow-sys --node-modules-dir=manual ./*.test.deno.js

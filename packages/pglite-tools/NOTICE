@@ -1,0 +1,16 @@
+@astermesh/pglite-tools is a modified distribution of PGlite Tools by
+Electric DB Limited:
+
+https://github.com/electric-sql/pglite
+
+The AsterMesh distribution uses its own package identity and builds its
+PostgreSQL tools from the AsterMesh postgres-pglite fork. Exact upstream and
+AsterMesh source revisions for each release are recorded in the signed
+fork-lineage attestation associated with the package tarball:
+
+https://github.com/astermesh/pglite
+https://github.com/astermesh/postgres-pglite
+
+PGlite Tools is distributed under the Apache License 2.0. Embedded PostgreSQL
+code and AsterMesh changes to the PostgreSQL source are distributed under the
+PostgreSQL License. See LICENSE and POSTGRES-LICENSE.

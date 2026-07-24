@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { PGlite } from '../dist/index.js'
-import { serialize } from '@electric-sql/pg-protocol'
+import { serialize } from '@astermesh/pg-protocol'
 
 describe('exec protocol', () => {
   let db: PGlite

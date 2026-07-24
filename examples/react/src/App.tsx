@@ -4,10 +4,10 @@ import viteLogo from '/vite.svg'
 import pgliteLogoLight from '/pglite-logo-light.svg'
 import typescriptLogo from '/typescript.svg'
 import './App.css'
-import { PGliteProvider } from '@electric-sql/pglite-react'
+import { PGliteProvider } from '@astermesh/pglite-react'
 import MyPGliteComponent from './MyPGliteComponent'
-import { live, PGliteWithLive } from '@electric-sql/pglite/live'
-import { PGlite } from '@electric-sql/pglite'
+import { live, PGliteWithLive } from '@astermesh/pglite/live'
+import { PGlite } from '@astermesh/pglite'
 
 let dbGlobal: PGliteWithLive | undefined
 

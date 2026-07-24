@@ -9,7 +9,7 @@ outline: [2, 3]
 The main constructor is imported as:
 
 ```ts
-import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@astermesh/pglite'
 ```
 
 The preferred way to create a PGlite instance is with the `PGlite.create()` static method that returns a promise, resolving to the new PGlite instance.
@@ -66,7 +66,7 @@ Path to the directory for storing the Postgres database. You can provide a URI s
   An object of type `{ [pgType: number]: (value: string) => any; }` mapping Postgres data type IDs to parser functions. For convenience, the `pglite` package exports a constant for most common Postgres types.
 
   ```ts
-  import { PGlite, types } from '@electric-sql/pglite'
+  import { PGlite, types } from '@astermesh/pglite'
 
   const pg = await PGlite.create({
     parsers: {
@@ -79,7 +79,7 @@ Path to the directory for storing the Postgres database. You can provide a URI s
   An object of type `{ [pgType: number]: (value: any) => string; }` mapping Postgres data type IDs to serializer functions.
 
   ```ts
-  import { PGlite, types } from '@electric-sql/pglite'
+  import { PGlite, types } from '@astermesh/pglite'
 
   const pg = await PGlite.create({
     serializers: {
@@ -95,9 +95,9 @@ PGlite and Postgres extensions are loaded into a PGLite instance on start, and c
 The `options.extensions` parameter is an object of `namespace: extension` parings. The namespace is used to expose the PGlite client plugin included in the extension. An example of this is the [live queries](./live-queries.md) extension.
 
 ```ts
-import { PGlite } from '@electric-sql/pglite'
-import { live } from '@electric-sql/pglite/live'
-import { vector } from '@electric-sql/pglite/vector'
+import { PGlite } from '@astermesh/pglite'
+import { live } from '@astermesh/pglite/live'
+import { vector } from '@astermesh/pglite/vector'
 
 const pg = await PGlite.create({
   extensions: {
@@ -141,7 +141,7 @@ The `query` and `exec` methods take an optional `options` objects with the follo
 - `parsers: ParserOptions` <br />
   An object mapping Postgres data type IDs to parser functions. This option overrides any parsers set at the instance level.
   ```ts
-  import { types } from '@electric-sql/pglite'
+  import { types } from '@astermesh/pglite'
   await pg.query(`SELECT * FROM test WHERE name = $1;`, ['test'], {
     parsers: {
       [types.TEXT]: (value) => value.toUpperCase(),
@@ -151,7 +151,7 @@ The `query` and `exec` methods take an optional `options` objects with the follo
 - `serializers: SerializerOptions` <br />
   An object mapping Postgres data type IDs to serializer functions. This option overrides any serializers set at the instance level.
   ```ts
-  import { types } from '@electric-sql/pglite'
+  import { types } from '@astermesh/pglite'
   await pg.query(`INSERT INTO test (numeric) VALUES ($1);`, [100n], {
     serializers: {
       [types.NUMERIC]: (value: number | bigint) => value.toString(),
@@ -448,7 +448,7 @@ If you require additional configurations or complex binary parameters it's best 
 ##### Example
 
 ```ts
-import { identifier, raw, sql, query } from '@electric-sql/pglite/template'
+import { identifier, raw, sql, query } from '@astermesh/pglite/template'
 
 await pg.sql`SELECT * FROM ${identifier`test`} WHERE name = ${'test'}`
 // equivalent of pg.query('SELECT * FROM "test" WHERE name = $1', ['test'])

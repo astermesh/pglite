@@ -13,8 +13,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@electric-sql/pglite": "workspace:*",
-    "@electric-sql/pglite-react": "workspace:*",
+    "@astermesh/pglite": "workspace:*",
+    "@astermesh/pglite-react": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

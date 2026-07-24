@@ -1,0 +1,13 @@
+@astermesh/pglite-repl is a modified distribution of PGlite REPL by
+Electric DB Limited:
+
+https://github.com/electric-sql/pglite
+
+The AsterMesh distribution uses its own package identity and depends on the
+corresponding @astermesh/pglite packages. Exact upstream and AsterMesh source
+revisions for each release are recorded in the signed fork-lineage
+attestation associated with the package tarball:
+
+https://github.com/astermesh/pglite
+
+PGlite REPL is distributed under the Apache License 2.0. See LICENSE.

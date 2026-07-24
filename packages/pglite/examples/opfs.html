@@ -7,7 +7,7 @@
     <script type="importmap">
       {
         "imports": {
-          "@electric-sql/pglite/worker": "../dist/worker/index.js"
+          "@astermesh/pglite/worker": "../dist/worker/index.js"
         }
       }
     </script>
@@ -20,7 +20,7 @@
         <div class="script" rel="./opfs-worker.js"></div>
         <h2>Main Thread</h2>
         <script type="module">
-          import { PGliteWorker } from '@electric-sql/pglite/worker'
+          import { PGliteWorker } from '@astermesh/pglite/worker'
 
           console.log('Starting...')
           const start = performance.now()

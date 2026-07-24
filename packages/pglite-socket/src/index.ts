@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite'
+import type { PGlite } from '@astermesh/pglite'
 import { type Server, type Socket, createServer } from 'net'
 
 // Connection queue timeout in milliseconds

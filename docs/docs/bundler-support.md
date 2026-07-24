@@ -17,7 +17,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['@electric-sql/pglite'],
+    exclude: ['@astermesh/pglite'],
   },
 })
 ```
@@ -31,7 +31,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   optimizeDeps: {
-    exclude: ['@electric-sql/pglite'],
+    exclude: ['@astermesh/pglite'],
   },
   worker: {
     format: 'es',
@@ -62,12 +62,12 @@ export const pglite = new PGliteWorker(
 
 ### Workaround: manually provide `wasmModule` and `fsBundle`
 
-1. Copy `pglite.wasm` and `pglite.data` from `node_modules/@electric-sql/pglite/dist/` to your public/build directory so your web server can serve them.
+1. Copy `pglite.wasm` and `pglite.data` from `node_modules/@astermesh/pglite/dist/` to your public/build directory so your web server can serve them.
 
 2. Pass them manually when creating a PGlite instance:
 
 ```ts
-import { PGlite } from '@electric-sql/pglite'
+import { PGlite } from '@astermesh/pglite'
 
 const [wasmModule, fsBundle] = await Promise.all([
   WebAssembly.compileStreaming(fetch('/pglite.wasm')),
@@ -84,14 +84,14 @@ Alternatively, you can use an esbuild plugin like [`@chialab/esbuild-plugin-meta
 
 ## Next.js
 
-When using [Next.js](https://nextjs.org/), make sure to add `@electric-sql/pglite` to the `transpilePackages` array in `next.config.js`:
+When using [Next.js](https://nextjs.org/), make sure to add `@astermesh/pglite` to the `transpilePackages` array in `next.config.js`:
 
 ```js
 const nextConfig = {
   swcMinify: false,
   transpilePackages: [
-    '@electric-sql/pglite-react', // Optional
-    '@electric-sql/pglite',
+    '@astermesh/pglite-react', // Optional
+    '@astermesh/pglite',
   ],
 }
 

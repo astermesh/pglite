@@ -5,7 +5,7 @@ This package implements React hooks for [PGLite](https://pglite.dev/) on top of 
 To install:
 
 ```sh
-npm install @electric-sql/pglite-react
+npm install @astermesh/pglite-react
 ```
 
 The hooks this package provides are:
