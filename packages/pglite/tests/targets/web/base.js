@@ -370,19 +370,15 @@ export function tests(env, dbFilename, target) {
 
         await db.waitReady
 
-        let resolveUpdate
-        window.liveIncrementalUpdate = new Promise((resolve) => {
-          resolveUpdate = resolve
-        })
-        const { initialResults } = await db.live.incrementalQuery(
+        const liveQuery = await db.live.incrementalQuery(
           'SELECT * FROM test ORDER BY name;',
           [],
           'id',
-          (result) => {
-            resolveUpdate(result)
-          },
         )
-        return initialResults
+        window.liveIncrementalUpdate = new Promise((resolve) => {
+          liveQuery.subscribe(resolve)
+        })
+        return liveQuery.initialResults
       })
 
       const res1 = await evaluate(async () => {
@@ -402,23 +398,21 @@ export function tests(env, dbFilename, target) {
 
         await db.waitReady
 
-        let updatedResults
-        let resolveUpdate
-        const update = new Promise((resolve) => {
-          resolveUpdate = resolve
-        })
-        const { initialResults } = await db.live.incrementalQuery(
+        const liveQuery = await db.live.incrementalQuery(
           'SELECT * FROM test ORDER BY name;',
           [],
           'id',
-          (result) => {
-            updatedResults = result
-            resolveUpdate()
-          },
         )
+        let updatedResults
+        const update = new Promise((resolve) => {
+          liveQuery.subscribe((result) => {
+            updatedResults = result
+            resolve()
+          })
+        })
         await db.query("INSERT INTO test (id, name) VALUES (4, 'test4');")
         await update
-        return { initialResults, updatedResults }
+        return { initialResults: liveQuery.initialResults, updatedResults }
       })
 
       const res2 = {
