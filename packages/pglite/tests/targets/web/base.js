@@ -353,7 +353,13 @@ export function tests(env, dbFilename, target) {
         console.log(msg)
       })
 
-      const res2InitialResults = await page2.evaluate(async () => {
+      let markPage2Ready
+      const page2Ready = new Promise((resolve) => {
+        markPage2Ready = resolve
+      })
+      await page2.exposeFunction('markLiveIncrementalReady', markPage2Ready)
+
+      const res2Prom = page2.evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
         const { PGliteWorker } = await import(PGLITE_WORKER_PATH)
 
@@ -375,11 +381,16 @@ export function tests(env, dbFilename, target) {
           [],
           'id',
         )
-        window.liveIncrementalUpdate = new Promise((resolve) => {
+        const updatedResults = new Promise((resolve) => {
           liveQuery.subscribe(resolve)
         })
-        return liveQuery.initialResults
+        await window.markLiveIncrementalReady()
+        return {
+          initialResults: liveQuery.initialResults,
+          updatedResults: await updatedResults,
+        }
       })
+      await page2Ready
 
       const res1 = await evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
@@ -415,12 +426,7 @@ export function tests(env, dbFilename, target) {
         return { initialResults: liveQuery.initialResults, updatedResults }
       })
 
-      const res2 = {
-        initialResults: res2InitialResults,
-        updatedResults: await page2.evaluate(
-          async () => await window.liveIncrementalUpdate,
-        ),
-      }
+      const res2 = await res2Prom
 
       expect(res1.initialResults.rows).toEqual([
         {
