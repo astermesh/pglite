@@ -353,11 +353,26 @@ export function tests(env, dbFilename, target) {
         console.log(msg)
       })
 
-      let markPage2Ready
-      const page2Ready = new Promise((resolve) => {
-        markPage2Ready = resolve
+      let markPage2SubscriptionReady
+      const page2SubscriptionReady = new Promise((resolve) => {
+        markPage2SubscriptionReady = resolve
       })
-      await page2.exposeFunction('markLiveIncrementalReady', markPage2Ready)
+      let markPage2NotificationReady
+      const page2NotificationReady = new Promise((resolve) => {
+        markPage2NotificationReady = resolve
+      })
+      await page2.exposeFunction(
+        'markLiveIncrementalSubscriptionReady',
+        markPage2SubscriptionReady,
+      )
+      await page2.exposeFunction(
+        'markLiveIncrementalNotificationReady',
+        markPage2NotificationReady,
+      )
+      await page.exposeFunction(
+        'waitForLiveIncrementalPeerReady',
+        () => page2NotificationReady,
+      )
 
       const res2Prom = page2.evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
@@ -384,13 +399,16 @@ export function tests(env, dbFilename, target) {
         const updatedResults = new Promise((resolve) => {
           liveQuery.subscribe(resolve)
         })
-        await window.markLiveIncrementalReady()
+        await db.listen('live_incremental_ready', () => {
+          window.markLiveIncrementalNotificationReady()
+        })
+        await window.markLiveIncrementalSubscriptionReady()
         return {
           initialResults: liveQuery.initialResults,
           updatedResults: await updatedResults,
         }
       })
-      await page2Ready
+      await page2SubscriptionReady
 
       const res1 = await evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
@@ -421,6 +439,16 @@ export function tests(env, dbFilename, target) {
             resolve()
           })
         })
+        let markNotificationReady
+        const notificationReady = new Promise((resolve) => {
+          markNotificationReady = resolve
+        })
+        await db.listen('live_incremental_ready', markNotificationReady)
+        await db.exec('NOTIFY live_incremental_ready')
+        await Promise.all([
+          notificationReady,
+          window.waitForLiveIncrementalPeerReady(),
+        ])
         await db.query("INSERT INTO test (id, name) VALUES (4, 'test4');")
         await update
         return { initialResults: liveQuery.initialResults, updatedResults }
