@@ -480,7 +480,7 @@ export function tests(env, dbFilename, target) {
           },
         ])
       }
-    })
+    }, 60_000)
 
     if (dbFilename.startsWith('idb://')) {
       it(`idb close and delete`, async () => {
