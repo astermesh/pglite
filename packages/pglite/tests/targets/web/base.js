@@ -353,26 +353,11 @@ export function tests(env, dbFilename, target) {
         console.log(msg)
       })
 
-      let markPage2SubscriptionReady
-      const page2SubscriptionReady = new Promise((resolve) => {
-        markPage2SubscriptionReady = resolve
+      let markPage2Ready
+      const page2Ready = new Promise((resolve) => {
+        markPage2Ready = resolve
       })
-      let markPage2NotificationReady
-      const page2NotificationReady = new Promise((resolve) => {
-        markPage2NotificationReady = resolve
-      })
-      await page2.exposeFunction(
-        'markLiveIncrementalSubscriptionReady',
-        markPage2SubscriptionReady,
-      )
-      await page2.exposeFunction(
-        'markLiveIncrementalNotificationReady',
-        markPage2NotificationReady,
-      )
-      await page.exposeFunction(
-        'waitForLiveIncrementalPeerReady',
-        () => page2NotificationReady,
-      )
+      await page2.exposeFunction('markLiveIncrementalReady', markPage2Ready)
 
       const res2Prom = page2.evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
@@ -391,24 +376,25 @@ export function tests(env, dbFilename, target) {
 
         await db.waitReady
 
-        const liveQuery = await db.live.incrementalQuery(
+        let updatedResults
+        const eventTarget = new EventTarget()
+        const { initialResults } = await db.live.incrementalQuery(
           'SELECT * FROM test ORDER BY name;',
           [],
           'id',
+          (result) => {
+            updatedResults = result
+            eventTarget.dispatchEvent(new Event('updated'))
+          },
         )
-        const updatedResults = new Promise((resolve) => {
-          liveQuery.subscribe(resolve)
+        const update = new Promise((resolve) => {
+          eventTarget.addEventListener('updated', resolve, { once: true })
         })
-        await db.listen('live_incremental_ready', () => {
-          window.markLiveIncrementalNotificationReady()
-        })
-        await window.markLiveIncrementalSubscriptionReady()
-        return {
-          initialResults: liveQuery.initialResults,
-          updatedResults: await updatedResults,
-        }
+        await window.markLiveIncrementalReady()
+        await update
+        return { initialResults, updatedResults }
       })
-      await page2SubscriptionReady
+      await page2Ready
 
       const res1 = await evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
@@ -427,31 +413,23 @@ export function tests(env, dbFilename, target) {
 
         await db.waitReady
 
-        const liveQuery = await db.live.incrementalQuery(
+        let updatedResults
+        const eventTarget = new EventTarget()
+        const { initialResults } = await db.live.incrementalQuery(
           'SELECT * FROM test ORDER BY name;',
           [],
           'id',
-        )
-        let updatedResults
-        const update = new Promise((resolve) => {
-          liveQuery.subscribe((result) => {
+          (result) => {
             updatedResults = result
-            resolve()
-          })
+            eventTarget.dispatchEvent(new Event('updated'))
+          },
+        )
+        const update = new Promise((resolve) => {
+          eventTarget.addEventListener('updated', resolve, { once: true })
         })
-        let markNotificationReady
-        const notificationReady = new Promise((resolve) => {
-          markNotificationReady = resolve
-        })
-        await db.listen('live_incremental_ready', markNotificationReady)
-        await db.exec('NOTIFY live_incremental_ready')
-        await Promise.all([
-          notificationReady,
-          window.waitForLiveIncrementalPeerReady(),
-        ])
         await db.query("INSERT INTO test (id, name) VALUES (4, 'test4');")
         await update
-        return { initialResults: liveQuery.initialResults, updatedResults }
+        return { initialResults, updatedResults }
       })
 
       const res2 = await res2Prom
