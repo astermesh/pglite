@@ -353,7 +353,7 @@ export function tests(env, dbFilename, target) {
         console.log(msg)
       })
 
-      const res2Prom = page2.evaluate(async () => {
+      const res2InitialResults = await page2.evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
         const { PGliteWorker } = await import(PGLITE_WORKER_PATH)
 
@@ -370,21 +370,19 @@ export function tests(env, dbFilename, target) {
 
         await db.waitReady
 
-        let updatedResults
-        const eventTarget = new EventTarget()
+        let resolveUpdate
+        window.liveIncrementalUpdate = new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
         const { initialResults } = await db.live.incrementalQuery(
           'SELECT * FROM test ORDER BY name;',
           [],
           'id',
           (result) => {
-            updatedResults = result
-            eventTarget.dispatchEvent(new Event('updated'))
+            resolveUpdate(result)
           },
         )
-        await new Promise((resolve) => {
-          eventTarget.addEventListener('updated', resolve)
-        })
-        return { initialResults, updatedResults }
+        return initialResults
       })
 
       const res1 = await evaluate(async () => {
@@ -405,25 +403,30 @@ export function tests(env, dbFilename, target) {
         await db.waitReady
 
         let updatedResults
-        const eventTarget = new EventTarget()
+        let resolveUpdate
+        const update = new Promise((resolve) => {
+          resolveUpdate = resolve
+        })
         const { initialResults } = await db.live.incrementalQuery(
           'SELECT * FROM test ORDER BY name;',
           [],
           'id',
           (result) => {
             updatedResults = result
-            eventTarget.dispatchEvent(new Event('updated'))
+            resolveUpdate()
           },
         )
-        await new Promise((resolve) => setTimeout(resolve, 500))
         await db.query("INSERT INTO test (id, name) VALUES (4, 'test4');")
-        await new Promise((resolve) => {
-          eventTarget.addEventListener('updated', resolve)
-        })
+        await update
         return { initialResults, updatedResults }
       })
 
-      const res2 = await res2Prom
+      const res2 = {
+        initialResults: res2InitialResults,
+        updatedResults: await page2.evaluate(
+          async () => await window.liveIncrementalUpdate,
+        ),
+      }
 
       expect(res1.initialResults.rows).toEqual([
         {
