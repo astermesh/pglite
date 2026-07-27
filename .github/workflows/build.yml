@@ -1,29 +1,31 @@
-name: build and publish package family
-run-name: publish ${{ inputs.line || inputs.ref }} from ${{ inputs.ref }}
+name: build, verify, and publish package family
+run-name: ${{ inputs.publish && 'publish' || 'verify' }} ${{ inputs.line || inputs.ref }} from ${{ inputs.ref }}
 
 permissions:
-  artifact-metadata: write
-  attestations: write
-  contents: write
-  id-token: write
-  packages: write
+  contents: read
+  packages: read
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "release line to publish (astermesh/vX.Y)"
+        description: "release line to verify or publish (astermesh/vX.Y)"
         required: true
         type: string
       promote_latest:
-        description: "also move the latest dist-tag"
+        description: "when publishing, also move the latest dist-tag"
+        required: false
+        default: false
+        type: boolean
+      publish:
+        description: "attest, publish, and finalize the verified release"
         required: false
         default: false
         type: boolean
   workflow_call:
     inputs:
       ref:
-        description: "exact release-line commit to publish"
+        description: "exact release-line commit to verify or publish"
         required: true
         type: string
       line:
@@ -31,13 +33,17 @@ on:
         required: true
         type: string
       promote_latest:
-        description: "also move the latest dist-tag"
+        description: "when publishing, also move the latest dist-tag"
         required: false
         default: false
         type: boolean
+      publish:
+        description: "attest, publish, and finalize the verified release"
+        required: true
+        type: boolean
 
 concurrency:
-  group: pglite-publish-${{ inputs.line || inputs.ref }}
+  group: pglite-release-${{ inputs.line || inputs.ref }}
   cancel-in-progress: false
 
 env:
@@ -171,11 +177,14 @@ jobs:
           if-no-files-found: error
           retention-days: 60
 
-  publish:
-    name: Publish ${{ matrix.name }}@${{ matrix.version }}
+  verify:
+    name: Verify ${{ matrix.name }}@${{ matrix.version }}
     needs: build
     if: needs.build.outputs.count != '0'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
@@ -216,6 +225,57 @@ jobs:
             --strict=true \
             -s .astermesh-ci/.github/attestations/fork-lineage-v1.schema.json \
             -d "$LINEAGE_PATH"
+      - name: Upload verified fork lineage
+        uses: actions/upload-artifact@v4
+        with:
+          name: pglite-fork-lineage-${{ matrix.filename }}
+          path: ${{ steps.lineage.outputs.predicate }}
+          if-no-files-found: error
+          retention-days: 60
+      - name: Dry-run package publication
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARBALL: ${{ runner.temp }}/release/${{ matrix.filename }}
+        run: |
+          npm publish "$TARBALL" \
+            --dry-run \
+            --ignore-scripts \
+            --registry=https://npm.pkg.github.com
+
+  publish:
+    name: Attest and publish ${{ matrix.name }}@${{ matrix.version }}
+    needs:
+      - build
+      - verify
+    if: >-
+      inputs.publish &&
+      needs.build.outputs.count != '0'
+    runs-on: ubuntu-latest
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
+    steps:
+      - name: Download package family
+        uses: actions/download-artifact@v4
+        with:
+          name: pglite-package-family-${{ github.run_id }}
+          path: ${{ runner.temp }}/release
+      - name: Download verified fork lineage
+        uses: actions/download-artifact@v4
+        with:
+          name: pglite-fork-lineage-${{ matrix.filename }}
+          path: ${{ runner.temp }}/lineage
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@astermesh"
       - name: Attest package build provenance
         id: build-attestation
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
@@ -227,13 +287,13 @@ jobs:
         with:
           subject-path: ${{ runner.temp }}/release/${{ matrix.filename }}
           predicate-type: https://github.com/astermesh/pglite/attestations/fork-lineage/v1
-          predicate-path: ${{ steps.lineage.outputs.predicate }}
+          predicate-path: ${{ runner.temp }}/lineage/fork-lineage.json
       - name: Verify package attestations
         env:
           BUILD_BUNDLE: ${{ steps.build-attestation.outputs.bundle-path }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAGE_BUNDLE: ${{ steps.lineage-attestation.outputs.bundle-path }}
-          LINEAGE_PATH: ${{ steps.lineage.outputs.predicate }}
+          LINEAGE_PATH: ${{ runner.temp }}/lineage/fork-lineage.json
           LINEAGE_VERIFICATION: ${{ runner.temp }}/lineage-verification.json
           TARBALL: ${{ runner.temp }}/release/${{ matrix.filename }}
         run: |
@@ -281,12 +341,18 @@ jobs:
     name: Finalize package family release
     needs:
       - build
+      - verify
       - publish
     if: >-
       always() &&
+      inputs.publish &&
       needs.build.result == 'success' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped') &&
       (needs.publish.result == 'success' || needs.publish.result == 'skipped')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
     steps:
       - name: Checkout release source
         uses: actions/checkout@v4

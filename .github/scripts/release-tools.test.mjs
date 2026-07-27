@@ -4,6 +4,7 @@ import {
   chmodSync,
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -39,6 +40,73 @@ const validConfig = {
     },
   ],
 };
+
+function section(source, start, end) {
+  const startIndex = source.indexOf(start);
+  assert.notEqual(startIndex, -1, `missing workflow section: ${start.trim()}`);
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  assert.notEqual(endIndex, -1, `missing workflow section: ${end.trim()}`);
+  return source.slice(startIndex, endIndex);
+}
+
+test("verification mode cannot reach release write capabilities", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+  const permissions = section(workflow, "permissions:\n", "\non:\n");
+  const dispatch = section(
+    workflow,
+    "  workflow_dispatch:\n",
+    "  workflow_call:\n",
+  );
+  const call = section(workflow, "  workflow_call:\n", "\nconcurrency:\n");
+  const verify = section(workflow, "\n  verify:\n", "\n  publish:\n");
+  const beforePublish = workflow.slice(0, workflow.indexOf("\n  publish:\n"));
+  const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
+  const finalize = workflow.slice(workflow.indexOf("\n  finalize:\n"));
+
+  assert.equal(
+    permissions,
+    "permissions:\n  contents: read\n  packages: read\n",
+  );
+  assert.match(
+    dispatch,
+    /publish:[\s\S]*default: false[\s\S]*type: boolean/,
+  );
+  assert.match(call, /publish:[\s\S]*required: true[\s\S]*type: boolean/);
+
+  assert.doesNotMatch(
+    beforePublish,
+    /^\s+(artifact-metadata|attestations|id-token|packages): write$/m,
+  );
+  assert.match(
+    verify,
+    /permissions:\n      contents: read\n      packages: read/,
+  );
+  assert.doesNotMatch(
+    verify,
+    /artifact-metadata: write|attestations: write|id-token: write|packages: write/,
+  );
+  assert.match(verify, /Upload verified fork lineage/);
+  assert.match(verify, /npm publish "\$TARBALL" \\\n            --dry-run/);
+
+  assert.match(publish, /inputs\.publish/);
+  assert.match(publish, /- verify/);
+  assert.match(publish, /Download verified fork lineage/);
+  assert.doesNotMatch(publish, /write-lineage\.mjs/);
+  assert.match(
+    publish,
+    /predicate-path: \$\{\{ runner\.temp \}\}\/lineage\/fork-lineage\.json/,
+  );
+  assert.match(publish, /artifact-metadata: write/);
+  assert.match(publish, /attestations: write/);
+  assert.match(publish, /id-token: write/);
+  assert.match(publish, /packages: write/);
+
+  assert.match(finalize, /inputs\.publish/);
+  assert.match(finalize, /- verify/);
+});
 
 test("release config owns and validates the complete package list", () => {
   assert.deepEqual(validateReleaseConfig(validConfig), {
