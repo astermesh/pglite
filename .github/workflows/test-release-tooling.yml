@@ -1,0 +1,39 @@
+name: test release tooling
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - astermesh/ci
+    paths:
+      - ".github/attestations/**"
+      - ".github/scripts/**"
+      - ".github/workflows/build.yml"
+      - ".github/workflows/test-release-tooling.yml"
+  push:
+    branches:
+      - astermesh/ci
+    paths:
+      - ".github/attestations/**"
+      - ".github/scripts/**"
+      - ".github/workflows/build.yml"
+      - ".github/workflows/test-release-tooling.yml"
+
+jobs:
+  test:
+    name: Test publication contract
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check release scripts
+        run: |
+          for script in .github/scripts/*.mjs; do
+            node --check "$script"
+          done
+      - name: Test release scripts
+        run: node --test .github/scripts/release-tools.test.mjs
