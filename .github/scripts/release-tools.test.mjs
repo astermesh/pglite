@@ -18,6 +18,12 @@ import {
 } from "./artifact-fingerprint.mjs";
 import { classifyPackage } from "./classify-packages.mjs";
 import { changedPackageVersions } from "./detect-version-change.mjs";
+import {
+  parseDistTagListing,
+  planDistTagUpdates,
+  readDistTags,
+  validateFinalDistTags,
+} from "./dist-tags.mjs";
 import { validateReleaseConfig } from "./release-config.mjs";
 import { validateReleaseSource } from "./release-source.mjs";
 import { remoteTagCommit } from "./remote-tag.mjs";
@@ -278,6 +284,116 @@ test("registry classification rejects reused and regressed versions", () => {
     /different contents/,
   );
   assert.throws(() => classifyPackage(pkg, ["0.3.18"], undefined), /not newer/);
+});
+
+test("registry dist-tags use the documented listing command and format", () => {
+  const calls = [];
+  const tags = readDistTags(
+    (args) => {
+      calls.push(args);
+      return [
+        "line-0-3: 0.3.17",
+        "staging-30300319510: 0.3.17",
+        "",
+      ].join("\n");
+    },
+    "@astermesh/pglite",
+  );
+  assert.deepEqual(calls, [["dist-tag", "ls", "@astermesh/pglite"]]);
+  assert.deepEqual(
+    tags,
+    new Map([
+      ["line-0-3", "0.3.17"],
+      ["staging-30300319510", "0.3.17"],
+    ]),
+  );
+  assert.deepEqual(
+    parseDistTagListing(
+      [
+        "line-0-3: 0.3.17",
+        "staging-30300319510: 0.3.17",
+        "",
+      ].join("\n"),
+      "@astermesh/pglite",
+    ),
+    new Map([
+      ["line-0-3", "0.3.17"],
+      ["staging-30300319510", "0.3.17"],
+    ]),
+  );
+  assert.deepEqual(
+    parseDistTagListing("", "@astermesh/pglite"),
+    new Map(),
+  );
+  assert.throws(
+    () => parseDistTagListing("not a tag record", "@astermesh/pglite"),
+    /invalid dist-tag record/,
+  );
+  assert.throws(
+    () =>
+      parseDistTagListing(
+        "line-0-3: 0.3.17\nline-0-3: 0.3.18\n",
+        "@astermesh/pglite",
+      ),
+    /duplicate dist-tag/,
+  );
+});
+
+test("dist-tag finalization recovers from a partial previous attempt", () => {
+  const common = {
+    version: "0.3.17",
+    distTag: "line-0-3",
+    promoteLatest: false,
+  };
+  const partiallyFinalized = parseDistTagListing(
+    "line-0-3: 0.3.17\nstaging-30300319510: 0.3.17\n",
+    "@astermesh/pglite",
+  );
+  const stagedOnly = parseDistTagListing(
+    "staging-30300319510: 0.3.17\n",
+    "@astermesh/pglite-react",
+  );
+
+  assert.deepEqual(
+    planDistTagUpdates({ ...common, tags: partiallyFinalized }),
+    {
+      additions: [],
+      removals: ["staging-30300319510"],
+    },
+  );
+  assert.deepEqual(planDistTagUpdates({ ...common, tags: stagedOnly }), {
+    additions: ["line-0-3"],
+    removals: ["staging-30300319510"],
+  });
+  assert.deepEqual(
+    planDistTagUpdates({ ...common, tags: new Map() }),
+    {
+      additions: ["line-0-3"],
+      removals: [],
+    },
+  );
+
+  const finalized = new Map([["line-0-3", "0.3.17"]]);
+  assert.deepEqual(planDistTagUpdates({ ...common, tags: finalized }), {
+    additions: [],
+    removals: [],
+  });
+  assert.doesNotThrow(() =>
+    validateFinalDistTags({
+      ...common,
+      packageName: "@astermesh/pglite",
+      tags: finalized,
+    }),
+  );
+  assert.throws(
+    () =>
+      validateFinalDistTags({
+        ...common,
+        packageName: "@astermesh/pglite",
+        tags: partiallyFinalized,
+      }),
+    /still has staging dist-tags/,
+  );
 });
 
 test("remote package tags resolve to their commit targets", () => {

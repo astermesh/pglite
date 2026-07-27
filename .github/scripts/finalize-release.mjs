@@ -1,6 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
+import {
+  planDistTagUpdates,
+  readDistTags,
+  validateFinalDistTags,
+} from "./dist-tags.mjs";
 import { remoteTagCommit } from "./remote-tag.mjs";
 
 const context = JSON.parse(readFileSync(process.env.RELEASE_CONTEXT, "utf8"));
@@ -40,17 +45,47 @@ for (const pkg of context.packages) {
   }
 }
 
-for (const pkg of context.packages) {
-  const spec = `${pkg.name}@${pkg.version}`;
-  npm(["dist-tag", "add", spec, context.distTag]);
-  if (promoteLatest) npm(["dist-tag", "add", spec, "latest"]);
+const initialPlans = context.packages.map((pkg) => ({
+  pkg,
+  ...planDistTagUpdates({
+    tags: readDistTags(npm, pkg.name),
+    version: pkg.version,
+    distTag: context.distTag,
+    promoteLatest,
+  }),
+}));
 
-  const tags = JSON.parse(npm(["view", pkg.name, "dist-tags", "--json"]));
-  for (const [tag, version] of Object.entries(tags)) {
-    if (tag.startsWith("staging-") && version === pkg.version) {
-      npm(["dist-tag", "rm", pkg.name, tag]);
-    }
+for (const { pkg, additions } of initialPlans) {
+  const spec = `${pkg.name}@${pkg.version}`;
+  for (const tag of additions) {
+    npm(["dist-tag", "add", spec, tag]);
   }
+}
+
+const cleanupPlans = context.packages.map((pkg) => ({
+  pkg,
+  ...planDistTagUpdates({
+    tags: readDistTags(npm, pkg.name),
+    version: pkg.version,
+    distTag: context.distTag,
+    promoteLatest,
+  }),
+}));
+
+for (const { pkg, removals } of cleanupPlans) {
+  for (const tag of removals) {
+    npm(["dist-tag", "rm", pkg.name, tag]);
+  }
+}
+
+for (const pkg of context.packages) {
+  validateFinalDistTags({
+    packageName: pkg.name,
+    tags: readDistTags(npm, pkg.name),
+    version: pkg.version,
+    distTag: context.distTag,
+    promoteLatest,
+  });
 }
 
 const missingGitTags = [];
