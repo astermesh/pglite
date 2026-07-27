@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
+import { finalizeDistTags } from "./dist-tags.mjs";
 import { remoteTagCommit } from "./remote-tag.mjs";
 
 const context = JSON.parse(readFileSync(process.env.RELEASE_CONTEXT, "utf8"));
@@ -40,18 +41,12 @@ for (const pkg of context.packages) {
   }
 }
 
-for (const pkg of context.packages) {
-  const spec = `${pkg.name}@${pkg.version}`;
-  npm(["dist-tag", "add", spec, context.distTag]);
-  if (promoteLatest) npm(["dist-tag", "add", spec, "latest"]);
-
-  const tags = JSON.parse(npm(["view", pkg.name, "dist-tags", "--json"]));
-  for (const [tag, version] of Object.entries(tags)) {
-    if (tag.startsWith("staging-") && version === pkg.version) {
-      npm(["dist-tag", "rm", pkg.name, tag]);
-    }
-  }
-}
+finalizeDistTags({
+  packages: context.packages,
+  distTag: context.distTag,
+  promoteLatest,
+  runNpm: npm,
+});
 
 const missingGitTags = [];
 for (const pkg of context.packages) {

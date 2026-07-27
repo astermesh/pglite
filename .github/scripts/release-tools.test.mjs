@@ -18,6 +18,13 @@ import {
 } from "./artifact-fingerprint.mjs";
 import { classifyPackage } from "./classify-packages.mjs";
 import { changedPackageVersions } from "./detect-version-change.mjs";
+import {
+  finalizeDistTags,
+  parseDistTagListing,
+  planDistTagUpdates,
+  readDistTags,
+  validateFinalDistTags,
+} from "./dist-tags.mjs";
 import { validateReleaseConfig } from "./release-config.mjs";
 import { validateReleaseSource } from "./release-source.mjs";
 import { remoteTagCommit } from "./remote-tag.mjs";
@@ -41,6 +48,51 @@ const validConfig = {
     },
   ],
 };
+
+function fakeDistTagRegistry(initialTags) {
+  const calls = [];
+  const tagsByPackage = new Map(
+    Object.entries(initialTags).map(([name, tags]) => [
+      name,
+      new Map(Object.entries(tags)),
+    ]),
+  );
+
+  function runNpm(args) {
+    calls.push(args);
+    const [command, action, specOrName, tag] = args;
+    assert.equal(command, "dist-tag");
+
+    if (action === "ls") {
+      const tags = tagsByPackage.get(specOrName);
+      assert.ok(tags, `unexpected package: ${specOrName}`);
+      return [...tags]
+        .map(([name, version]) => `${name}: ${version}`)
+        .join("\n");
+    }
+
+    if (action === "add") {
+      const separator = specOrName.lastIndexOf("@");
+      const packageName = specOrName.slice(0, separator);
+      const version = specOrName.slice(separator + 1);
+      const tags = tagsByPackage.get(packageName);
+      assert.ok(tags, `unexpected package: ${packageName}`);
+      tags.set(tag, version);
+      return "";
+    }
+
+    if (action === "rm") {
+      const tags = tagsByPackage.get(specOrName);
+      assert.ok(tags, `unexpected package: ${specOrName}`);
+      tags.delete(tag);
+      return "";
+    }
+
+    throw new Error(`unexpected npm command: ${args.join(" ")}`);
+  }
+
+  return { calls, runNpm, tagsByPackage };
+}
 
 function section(source, start, end) {
   const startIndex = source.indexOf(start);
@@ -278,6 +330,280 @@ test("registry classification rejects reused and regressed versions", () => {
     /different contents/,
   );
   assert.throws(() => classifyPackage(pkg, ["0.3.18"], undefined), /not newer/);
+});
+
+test("registry dist-tags use the documented listing command and format", () => {
+  const calls = [];
+  const tags = readDistTags(
+    (args) => {
+      calls.push(args);
+      return [
+        "line-0-3: 0.3.17",
+        "staging-30300319510: 0.3.17",
+        "",
+      ].join("\n");
+    },
+    "@astermesh/pglite",
+  );
+  assert.deepEqual(calls, [["dist-tag", "ls", "@astermesh/pglite"]]);
+  assert.deepEqual(
+    tags,
+    new Map([
+      ["line-0-3", "0.3.17"],
+      ["staging-30300319510", "0.3.17"],
+    ]),
+  );
+  assert.deepEqual(
+    parseDistTagListing(
+      [
+        "line-0-3: 0.3.17",
+        "staging-30300319510: 0.3.17",
+        "",
+      ].join("\n"),
+      "@astermesh/pglite",
+    ),
+    new Map([
+      ["line-0-3", "0.3.17"],
+      ["staging-30300319510", "0.3.17"],
+    ]),
+  );
+  assert.deepEqual(
+    parseDistTagListing("", "@astermesh/pglite"),
+    new Map(),
+  );
+  assert.throws(
+    () => parseDistTagListing("not a tag record", "@astermesh/pglite"),
+    /invalid dist-tag record/,
+  );
+  assert.throws(
+    () =>
+      parseDistTagListing(
+        "line-0-3: 0.3.17\nline-0-3: 0.3.18\n",
+        "@astermesh/pglite",
+      ),
+    /duplicate dist-tag/,
+  );
+});
+
+test("dist-tag finalization recovers from a partial previous attempt", () => {
+  const common = {
+    version: "0.3.17",
+    distTag: "line-0-3",
+    promoteLatest: false,
+  };
+  const partiallyFinalized = parseDistTagListing(
+    "line-0-3: 0.3.17\nstaging-30300319510: 0.3.17\n",
+    "@astermesh/pglite",
+  );
+  const stagedOnly = parseDistTagListing(
+    "staging-30300319510: 0.3.17\n",
+    "@astermesh/pglite-react",
+  );
+
+  assert.deepEqual(
+    planDistTagUpdates({ ...common, tags: partiallyFinalized }),
+    {
+      additions: [],
+      removals: ["staging-30300319510"],
+    },
+  );
+  assert.deepEqual(planDistTagUpdates({ ...common, tags: stagedOnly }), {
+    additions: ["line-0-3"],
+    removals: ["staging-30300319510"],
+  });
+  assert.deepEqual(
+    planDistTagUpdates({ ...common, tags: new Map() }),
+    {
+      additions: ["line-0-3"],
+      removals: [],
+    },
+  );
+
+  const finalized = new Map([["line-0-3", "0.3.17"]]);
+  assert.deepEqual(planDistTagUpdates({ ...common, tags: finalized }), {
+    additions: [],
+    removals: [],
+  });
+  assert.doesNotThrow(() =>
+    validateFinalDistTags({
+      ...common,
+      packageName: "@astermesh/pglite",
+      tags: finalized,
+    }),
+  );
+  assert.throws(
+    () =>
+      validateFinalDistTags({
+        ...common,
+        packageName: "@astermesh/pglite",
+        tags: partiallyFinalized,
+      }),
+    /still has staging dist-tags/,
+  );
+});
+
+test("package-family tag finalization is ordered and idempotent", () => {
+  const packages = [
+    { name: "@astermesh/pglite", version: "0.3.17" },
+    { name: "@astermesh/pglite-react", version: "0.2.34" },
+    { name: "@astermesh/pglite-vue", version: "0.2.34" },
+  ];
+  const registry = fakeDistTagRegistry({
+    "@astermesh/pglite": {
+      "line-0-3": "0.3.17",
+      "staging-30300319510": "0.3.17",
+      "staging-future": "0.3.18",
+    },
+    "@astermesh/pglite-react": {
+      "staging-30300319510": "0.2.34",
+    },
+    "@astermesh/pglite-vue": {},
+  });
+  const finalize = () =>
+    finalizeDistTags({
+      packages,
+      distTag: "line-0-3",
+      promoteLatest: false,
+      runNpm: registry.runNpm,
+    });
+
+  finalize();
+
+  const mutations = registry.calls.filter(([, action]) => action !== "ls");
+  assert.deepEqual(mutations, [
+    [
+      "dist-tag",
+      "add",
+      "@astermesh/pglite-react@0.2.34",
+      "line-0-3",
+    ],
+    [
+      "dist-tag",
+      "add",
+      "@astermesh/pglite-vue@0.2.34",
+      "line-0-3",
+    ],
+    [
+      "dist-tag",
+      "rm",
+      "@astermesh/pglite",
+      "staging-30300319510",
+    ],
+    [
+      "dist-tag",
+      "rm",
+      "@astermesh/pglite-react",
+      "staging-30300319510",
+    ],
+  ]);
+  assert.deepEqual(
+    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite")),
+    {
+      "line-0-3": "0.3.17",
+      "staging-future": "0.3.18",
+    },
+  );
+  assert.deepEqual(
+    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite-react")),
+    { "line-0-3": "0.2.34" },
+  );
+  assert.deepEqual(
+    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite-vue")),
+    { "line-0-3": "0.2.34" },
+  );
+
+  finalize();
+  assert.deepEqual(
+    registry.calls.filter(([, action]) => action !== "ls"),
+    mutations,
+  );
+});
+
+test("package-family tag finalization can promote latest", () => {
+  const registry = fakeDistTagRegistry({
+    "@astermesh/pglite": {
+      latest: "0.3.16",
+      "line-0-3": "0.3.17",
+      "staging-30300319510": "0.3.17",
+    },
+  });
+
+  finalizeDistTags({
+    packages: [{ name: "@astermesh/pglite", version: "0.3.17" }],
+    distTag: "line-0-3",
+    promoteLatest: true,
+    runNpm: registry.runNpm,
+  });
+
+  assert.deepEqual(
+    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite")),
+    {
+      latest: "0.3.17",
+      "line-0-3": "0.3.17",
+    },
+  );
+});
+
+test("package-family tag finalization validates all listings before writes", () => {
+  const mutations = [];
+  const runNpm = (args) => {
+    const [, action, packageName] = args;
+    if (action !== "ls") {
+      mutations.push(args);
+      return "";
+    }
+    if (packageName === "@astermesh/pglite") {
+      return "staging-30300319510: 0.3.17\n";
+    }
+    return "not a dist-tag record\n";
+  };
+
+  assert.throws(
+    () =>
+      finalizeDistTags({
+        packages: [
+          { name: "@astermesh/pglite", version: "0.3.17" },
+          { name: "@astermesh/pglite-react", version: "0.2.34" },
+        ],
+        distTag: "line-0-3",
+        promoteLatest: false,
+        runNpm,
+      }),
+    /invalid dist-tag record for @astermesh\/pglite-react/,
+  );
+  assert.deepEqual(mutations, []);
+});
+
+test("package-family tag finalization enforces registry postconditions", () => {
+  const mutations = [];
+  const runNpm = (args) => {
+    const [, action] = args;
+    if (action === "ls") {
+      return "staging-30300319510: 0.3.17\n";
+    }
+    mutations.push(args);
+    return "";
+  };
+
+  assert.throws(
+    () =>
+      finalizeDistTags({
+        packages: [{ name: "@astermesh/pglite", version: "0.3.17" }],
+        distTag: "line-0-3",
+        promoteLatest: false,
+        runNpm,
+      }),
+    /dist-tag line-0-3 does not point to 0.3.17/,
+  );
+  assert.deepEqual(mutations, [
+    ["dist-tag", "add", "@astermesh/pglite@0.3.17", "line-0-3"],
+    [
+      "dist-tag",
+      "rm",
+      "@astermesh/pglite",
+      "staging-30300319510",
+    ],
+  ]);
 });
 
 test("remote package tags resolve to their commit targets", () => {
