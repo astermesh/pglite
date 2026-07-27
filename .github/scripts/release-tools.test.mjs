@@ -19,6 +19,7 @@ import {
 import { classifyPackage } from "./classify-packages.mjs";
 import { changedPackageVersions } from "./detect-version-change.mjs";
 import { validateReleaseConfig } from "./release-config.mjs";
+import { validateReleaseSource } from "./release-source.mjs";
 import { remoteTagCommit } from "./remote-tag.mjs";
 
 const validConfig = {
@@ -70,11 +71,19 @@ test("verification mode cannot reach release write capabilities", () => {
     permissions,
     "permissions:\n  contents: read\n  packages: read\n",
   );
-  assert.match(
-    dispatch,
-    /publish:[\s\S]*default: false[\s\S]*type: boolean/,
-  );
+  assert.match(dispatch, /publish:[\s\S]*default: false[\s\S]*type: boolean/);
+  assert.match(dispatch, /source_ref:[\s\S]*default: ""[\s\S]*type: string/);
   assert.match(call, /publish:[\s\S]*required: true[\s\S]*type: boolean/);
+  assert.match(call, /source_ref:[\s\S]*default: ""[\s\S]*type: string/);
+  assert.match(
+    workflow,
+    /SOURCE_REF: \$\{\{ inputs\.source_ref \|\| inputs\.ref \}\}/,
+  );
+  assert.match(
+    workflow,
+    /SOURCE_OVERRIDE: \$\{\{ inputs\.source_ref != '' \}\}/,
+  );
+  assert.match(workflow, /PUBLISH_MODE: \$\{\{ inputs\.publish \}\}/);
 
   assert.doesNotMatch(
     beforePublish,
@@ -106,6 +115,78 @@ test("verification mode cannot reach release write capabilities", () => {
 
   assert.match(finalize, /inputs\.publish/);
   assert.match(finalize, /- verify/);
+});
+
+test("release source overrides are verification-only line descendants", () => {
+  const base = {
+    sourceCommit: "a".repeat(40),
+    releaseLine: "astermesh/v0.3",
+  };
+
+  assert.equal(
+    validateReleaseSource({
+      ...base,
+      publish: true,
+      sourceOverride: false,
+      sourceIsOnLine: true,
+      sourceExtendsLine: false,
+    }),
+    "landed",
+  );
+  assert.equal(
+    validateReleaseSource({
+      ...base,
+      publish: false,
+      sourceOverride: true,
+      sourceIsOnLine: false,
+      sourceExtendsLine: true,
+    }),
+    "candidate",
+  );
+  assert.throws(
+    () =>
+      validateReleaseSource({
+        ...base,
+        publish: true,
+        sourceOverride: true,
+        sourceIsOnLine: true,
+        sourceExtendsLine: true,
+      }),
+    /source_ref is allowed only when publish is false/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseSource({
+        ...base,
+        publish: false,
+        sourceOverride: false,
+        sourceIsOnLine: false,
+        sourceExtendsLine: true,
+      }),
+    /not an allowed source/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseSource({
+        ...base,
+        publish: false,
+        sourceOverride: true,
+        sourceIsOnLine: false,
+        sourceExtendsLine: false,
+      }),
+    /not an allowed source/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseSource({
+        ...base,
+        publish: true,
+        sourceOverride: false,
+        sourceIsOnLine: false,
+        sourceExtendsLine: true,
+      }),
+    /not an allowed source/,
+  );
 });
 
 test("release config owns and validates the complete package list", () => {

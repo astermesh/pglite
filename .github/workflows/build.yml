@@ -1,5 +1,5 @@
 name: build, verify, and publish package family
-run-name: ${{ inputs.publish && 'publish' || 'verify' }} ${{ inputs.line || inputs.ref }} from ${{ inputs.ref }}
+run-name: ${{ inputs.publish && 'publish' || 'verify' }} ${{ inputs.line || inputs.ref }} from ${{ inputs.source_ref || inputs.ref }}
 
 permissions:
   contents: read
@@ -11,6 +11,11 @@ on:
       ref:
         description: "release line to verify or publish (astermesh/vX.Y)"
         required: true
+        type: string
+      source_ref:
+        description: "optional source ref for verify-only runs"
+        required: false
+        default: ""
         type: string
       promote_latest:
         description: "when publishing, also move the latest dist-tag"
@@ -32,6 +37,11 @@ on:
         description: "release line containing the commit"
         required: true
         type: string
+      source_ref:
+        description: "optional source ref for verify-only runs"
+        required: false
+        default: ""
+        type: string
       promote_latest:
         description: "when publishing, also move the latest dist-tag"
         required: false
@@ -48,7 +58,9 @@ concurrency:
 
 env:
   RELEASE_LINE: ${{ inputs.line || inputs.ref }}
-  SOURCE_REF: ${{ inputs.ref }}
+  SOURCE_REF: ${{ inputs.source_ref || inputs.ref }}
+  SOURCE_OVERRIDE: ${{ inputs.source_ref != '' }}
+  PUBLISH_MODE: ${{ inputs.publish }}
   STAGING_TAG: staging-${{ github.run_id }}
   TZ: UTC
 
