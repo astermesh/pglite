@@ -50,11 +50,39 @@ function npm(args, options = {}) {
   throw new Error(`npm command failed: npm ${args.join(" ")}`);
 }
 
-function publishedVersions(name) {
-  const output = npm(["view", name, "versions", "--json"]);
+export function parsePublishedVersions(output, name) {
+  if (typeof output !== "string" || output.trim() === "") {
+    throw new Error(`empty published versions response for ${name}`);
+  }
+  let report;
+  try {
+    report = JSON.parse(output);
+  } catch {
+    throw new Error(`invalid published versions response for ${name}`);
+  }
+  const versions = Array.isArray(report) ? report : [report];
+  const seen = new Set();
+  for (const version of versions) {
+    if (typeof version !== "string" || !stableVersionPattern.test(version)) {
+      throw new Error(`invalid published version for ${name}: ${version}`);
+    }
+    if (seen.has(version)) {
+      throw new Error(`duplicate published version for ${name}: ${version}`);
+    }
+    seen.add(version);
+  }
+  return versions;
+}
+
+export function readPublishedVersions(runNpm, name) {
+  const output = runNpm([
+    "view",
+    `${name}@>=0.0.0`,
+    "version",
+    "--json",
+  ]);
   if (output === undefined) return [];
-  const report = JSON.parse(output || "[]");
-  return Array.isArray(report) ? report : [report];
+  return parsePublishedVersions(output, name);
 }
 
 function publishedFingerprint(pkg) {
@@ -96,7 +124,7 @@ if (contextPath && packedPath && planPath) {
     if (!pkg || pkg.version !== expected.version) {
       throw new Error(`packed package is missing: ${expected.name}`);
     }
-    const versions = publishedVersions(pkg.name);
+    const versions = readPublishedVersions(npm, pkg.name);
     const fingerprint = versions.includes(pkg.version)
       ? publishedFingerprint(pkg)
       : undefined;

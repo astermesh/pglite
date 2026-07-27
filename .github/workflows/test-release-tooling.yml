@@ -2,6 +2,7 @@ name: test release tooling
 
 permissions:
   contents: read
+  packages: read
 
 on:
   pull_request:
@@ -30,10 +31,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@astermesh"
       - name: Check release scripts
         run: |
           for script in .github/scripts/*.mjs; do
             node --check "$script"
           done
+      - name: Check GitHub Packages version query
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          output="$(npm view '@astermesh/pglite@>=0.0.0' version --json --registry=https://npm.pkg.github.com)"
+          node --input-type=module --eval '
+            import { parsePublishedVersions } from "./.github/scripts/classify-packages.mjs"
+            parsePublishedVersions(process.argv[1], "@astermesh/pglite")
+          ' "$output"
       - name: Test release scripts
         run: node --test .github/scripts/release-tools.test.mjs
