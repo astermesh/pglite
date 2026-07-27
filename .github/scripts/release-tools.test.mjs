@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +17,11 @@ import {
   fingerprintDirectory,
   fingerprintTarball,
 } from "./artifact-fingerprint.mjs";
-import { classifyPackage } from "./classify-packages.mjs";
+import {
+  classifyPackage,
+  parsePublishedVersions,
+  readPublishedVersions,
+} from "./classify-packages.mjs";
 import { changedPackageVersions } from "./detect-version-change.mjs";
 import {
   finalizeDistTags,
@@ -169,6 +174,27 @@ test("verification mode cannot reach release write capabilities", () => {
   assert.match(finalize, /- verify/);
 });
 
+test("release-tooling CI verifies the live package query read-only", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/test-release-tooling.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    workflow,
+    /permissions:\n  contents: read\n  packages: read\n/,
+  );
+  assert.match(workflow, /registry-url: "https:\/\/npm\.pkg\.github\.com"/);
+  assert.match(workflow, /scope: "@astermesh"/);
+  assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(
+    workflow,
+    /npm view '@astermesh\/pglite@>=0\.0\.0' version --json --registry=https:\/\/npm\.pkg\.github\.com/,
+  );
+  assert.match(workflow, /parsePublishedVersions\(process\.argv\[1\]/);
+  assert.doesNotMatch(workflow, /packages: write/);
+});
+
 test("release source overrides are verification-only line descendants", () => {
   const base = {
     sourceCommit: "a".repeat(40),
@@ -315,6 +341,106 @@ test("tarball fingerprint ignores archive metadata", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("tarball fingerprint normalizes nested archive metadata", () => {
+  const root = mkdtempSync(resolve(tmpdir(), "nested-fingerprint-"));
+  const makePackage = (name, timestamp, content) => {
+    const packageRoot = resolve(root, name, "package");
+    const extensionRoot = resolve(root, `${name}-extension`);
+    mkdirSync(resolve(packageRoot, "dist"), { recursive: true });
+    mkdirSync(resolve(extensionRoot, "lib"), { recursive: true });
+    const library = resolve(extensionRoot, "lib/extension.so");
+    writeFileSync(library, content);
+    chmodSync(library, 0o755);
+    utimesSync(library, timestamp, timestamp);
+    const nested = resolve(packageRoot, "dist/extension.tar.gz");
+    execFileSync("tar", ["-czf", nested, "-C", extensionRoot, "."]);
+    const outer = resolve(root, `${name}.tgz`);
+    execFileSync("tar", [
+      "-czf",
+      outer,
+      "-C",
+      resolve(root, name),
+      "package",
+    ]);
+    return { nested, outer };
+  };
+
+  try {
+    const first = makePackage("first", new Date(0), "same content\n");
+    const second = makePackage(
+      "second",
+      new Date("2026-07-28T01:06:00Z"),
+      "same content\n",
+    );
+    const changed = makePackage(
+      "changed",
+      new Date("2026-07-28T01:06:00Z"),
+      "changed content\n",
+    );
+
+    assert.notDeepEqual(readFileSync(first.nested), readFileSync(second.nested));
+    assert.equal(
+      fingerprintTarball(first.outer),
+      fingerprintTarball(second.outer),
+    );
+    assert.notEqual(
+      fingerprintTarball(first.outer),
+      fingerprintTarball(changed.outer),
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("registry versions use a stable range and fail closed", () => {
+  const calls = [];
+  const versions = readPublishedVersions(
+    (args) => {
+      calls.push(args);
+      return '["0.3.16","0.3.17"]\n';
+    },
+    "@astermesh/pglite",
+  );
+
+  assert.deepEqual(calls, [
+    [
+      "view",
+      "@astermesh/pglite@>=0.0.0",
+      "version",
+      "--json",
+    ],
+  ]);
+  assert.deepEqual(versions, ["0.3.16", "0.3.17"]);
+  assert.deepEqual(
+    parsePublishedVersions('"0.3.17"\n', "@astermesh/pglite"),
+    ["0.3.17"],
+  );
+  assert.deepEqual(
+    readPublishedVersions(() => undefined, "@astermesh/pglite"),
+    [],
+  );
+  assert.throws(
+    () => parsePublishedVersions("", "@astermesh/pglite"),
+    /empty published versions response/,
+  );
+  assert.throws(
+    () => parsePublishedVersions("{", "@astermesh/pglite"),
+    /invalid published versions response/,
+  );
+  assert.throws(
+    () => parsePublishedVersions('{"version":"0.3.17"}', "@astermesh/pglite"),
+    /invalid published version/,
+  );
+  assert.throws(
+    () =>
+      parsePublishedVersions(
+        '["0.3.17","0.3.17"]',
+        "@astermesh/pglite",
+      ),
+    /duplicate published version/,
+  );
 });
 
 test("registry classification rejects reused and regressed versions", () => {

@@ -11,6 +11,8 @@ import {
 import { tmpdir } from "node:os";
 import { relative, resolve } from "node:path";
 
+const nestedTarballPattern = /\.(?:tar\.gz|tgz)$/;
+
 function normalizedEntries(root) {
   const entries = [];
 
@@ -33,7 +35,10 @@ function normalizedEntries(root) {
           path: relativePath,
           type: "file",
           executable: (stat.mode & 0o111) !== 0,
-          content: readFileSync(path),
+          source: path,
+          content: nestedTarballPattern.test(relativePath)
+            ? undefined
+            : readFileSync(path),
         });
       } else {
         throw new Error(`unsupported tarball entry: ${relativePath}`);
@@ -45,6 +50,44 @@ function normalizedEntries(root) {
   return entries;
 }
 
+function tarballListing(tarball, requiredRoot) {
+  const listing = execFileSync("tar", ["-tzf", tarball], {
+    encoding: "utf8",
+  })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+
+  for (const entry of listing) {
+    const normalized = entry.replace(/^\.\//, "");
+    if (
+      normalized.startsWith("/") ||
+      normalized.split("/").includes("..") ||
+      (requiredRoot &&
+        !(
+          normalized === requiredRoot ||
+          normalized.startsWith(`${requiredRoot}/`)
+        ))
+    ) {
+      throw new Error(`unsafe tarball entry: ${entry}`);
+    }
+  }
+  return listing;
+}
+
+function fingerprintArchiveContents(tarball, requiredRoot) {
+  tarballListing(tarball, requiredRoot);
+  const extraction = mkdtempSync(resolve(tmpdir(), "pglite-fingerprint-"));
+  try {
+    execFileSync("tar", ["-xzf", tarball, "-C", extraction]);
+    return fingerprintDirectory(
+      requiredRoot ? resolve(extraction, requiredRoot) : extraction,
+    );
+  } finally {
+    rmSync(extraction, { recursive: true, force: true });
+  }
+}
+
 export function fingerprintDirectory(root) {
   const hash = createHash("sha256");
   for (const entry of normalizedEntries(root)) {
@@ -53,34 +96,15 @@ export function fingerprintDirectory(root) {
     );
     if (entry.target !== undefined) hash.update(entry.target);
     if (entry.content !== undefined) hash.update(entry.content);
+    if (entry.source !== undefined && entry.content === undefined) {
+      hash.update("normalized-tarball\0");
+      hash.update(fingerprintArchiveContents(entry.source));
+    }
     hash.update("\0");
   }
   return `sha256:${hash.digest("hex")}`;
 }
 
 export function fingerprintTarball(tarball) {
-  const listing = execFileSync("tar", ["-tzf", tarball], {
-    encoding: "utf8",
-  })
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-  for (const entry of listing) {
-    const normalized = entry.replace(/^\.\//, "");
-    if (
-      normalized.startsWith("/") ||
-      normalized.split("/").includes("..") ||
-      !(normalized === "package" || normalized.startsWith("package/"))
-    ) {
-      throw new Error(`unsafe tarball entry: ${entry}`);
-    }
-  }
-
-  const extraction = mkdtempSync(resolve(tmpdir(), "pglite-fingerprint-"));
-  try {
-    execFileSync("tar", ["-xzf", tarball, "-C", extraction]);
-    return fingerprintDirectory(resolve(extraction, "package"));
-  } finally {
-    rmSync(extraction, { recursive: true, force: true });
-  }
+  return fingerprintArchiveContents(tarball, "package");
 }
