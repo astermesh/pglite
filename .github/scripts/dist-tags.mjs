@@ -81,3 +81,53 @@ export function validateFinalDistTags({
     );
   }
 }
+
+export function finalizeDistTags({
+  packages,
+  distTag,
+  promoteLatest,
+  runNpm,
+}) {
+  const initialPlans = packages.map((pkg) => ({
+    pkg,
+    ...planDistTagUpdates({
+      tags: readDistTags(runNpm, pkg.name),
+      version: pkg.version,
+      distTag,
+      promoteLatest,
+    }),
+  }));
+
+  for (const { pkg, additions } of initialPlans) {
+    const spec = `${pkg.name}@${pkg.version}`;
+    for (const tag of additions) {
+      runNpm(["dist-tag", "add", spec, tag]);
+    }
+  }
+
+  const cleanupPlans = packages.map((pkg) => ({
+    pkg,
+    ...planDistTagUpdates({
+      tags: readDistTags(runNpm, pkg.name),
+      version: pkg.version,
+      distTag,
+      promoteLatest,
+    }),
+  }));
+
+  for (const { pkg, removals } of cleanupPlans) {
+    for (const tag of removals) {
+      runNpm(["dist-tag", "rm", pkg.name, tag]);
+    }
+  }
+
+  for (const pkg of packages) {
+    validateFinalDistTags({
+      packageName: pkg.name,
+      tags: readDistTags(runNpm, pkg.name),
+      version: pkg.version,
+      distTag,
+      promoteLatest,
+    });
+  }
+}
