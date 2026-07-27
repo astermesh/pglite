@@ -353,6 +353,60 @@ export function tests(env, dbFilename, target) {
         console.log(msg)
       })
 
+      let markPage1Ready
+      const page1Ready = new Promise((resolve) => {
+        markPage1Ready = resolve
+      })
+      let markPage2Ready
+      const page2Ready = new Promise((resolve) => {
+        markPage2Ready = resolve
+      })
+      await page.exposeFunction('markLiveIncrementalReady', markPage1Ready)
+      await page.exposeFunction(
+        'waitForLiveIncrementalPeerReady',
+        () => page2Ready,
+      )
+      await page2.exposeFunction('markLiveIncrementalReady', markPage2Ready)
+
+      const res1Prom = evaluate(async () => {
+        const { live } = await import(PGLITE_LIVE_PATH)
+        const { PGliteWorker } = await import(PGLITE_WORKER_PATH)
+
+        let db
+        db = new PGliteWorker(
+          new Worker(WORKER_PATH, {
+            type: 'module',
+          }),
+          {
+            dataDir: window.dbFilename,
+            extensions: { live },
+          },
+        )
+
+        await db.waitReady
+
+        let updatedResults
+        const eventTarget = new EventTarget()
+        const { initialResults } = await db.live.incrementalQuery(
+          'SELECT * FROM test ORDER BY name;',
+          [],
+          'id',
+          (result) => {
+            updatedResults = result
+            eventTarget.dispatchEvent(new Event('updated'))
+          },
+        )
+        const update = new Promise((resolve) => {
+          eventTarget.addEventListener('updated', resolve, { once: true })
+        })
+        await window.markLiveIncrementalReady()
+        await window.waitForLiveIncrementalPeerReady()
+        await db.query("INSERT INTO test (id, name) VALUES (4, 'test4');")
+        await update
+        return { initialResults, updatedResults }
+      })
+      await page1Ready
+
       const res2Prom = page2.evaluate(async () => {
         const { live } = await import(PGLITE_LIVE_PATH)
         const { PGliteWorker } = await import(PGLITE_WORKER_PATH)
@@ -381,49 +435,15 @@ export function tests(env, dbFilename, target) {
             eventTarget.dispatchEvent(new Event('updated'))
           },
         )
-        await new Promise((resolve) => {
-          eventTarget.addEventListener('updated', resolve)
+        const update = new Promise((resolve) => {
+          eventTarget.addEventListener('updated', resolve, { once: true })
         })
+        await window.markLiveIncrementalReady()
+        await update
         return { initialResults, updatedResults }
       })
 
-      const res1 = await evaluate(async () => {
-        const { live } = await import(PGLITE_LIVE_PATH)
-        const { PGliteWorker } = await import(PGLITE_WORKER_PATH)
-
-        let db
-        db = new PGliteWorker(
-          new Worker(WORKER_PATH, {
-            type: 'module',
-          }),
-          {
-            dataDir: window.dbFilename,
-            extensions: { live },
-          },
-        )
-
-        await db.waitReady
-
-        let updatedResults
-        const eventTarget = new EventTarget()
-        const { initialResults } = await db.live.incrementalQuery(
-          'SELECT * FROM test ORDER BY name;',
-          [],
-          'id',
-          (result) => {
-            updatedResults = result
-            eventTarget.dispatchEvent(new Event('updated'))
-          },
-        )
-        await new Promise((resolve) => setTimeout(resolve, 500))
-        await db.query("INSERT INTO test (id, name) VALUES (4, 'test4');")
-        await new Promise((resolve) => {
-          eventTarget.addEventListener('updated', resolve)
-        })
-        return { initialResults, updatedResults }
-      })
-
-      const res2 = await res2Prom
+      const [res1, res2] = await Promise.all([res1Prom, res2Prom])
 
       expect(res1.initialResults.rows).toEqual([
         {
@@ -460,7 +480,7 @@ export function tests(env, dbFilename, target) {
           },
         ])
       }
-    })
+    }, 60_000)
 
     if (dbFilename.startsWith('idb://')) {
       it(`idb close and delete`, async () => {
