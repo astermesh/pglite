@@ -1,9 +1,10 @@
 {
-  "name": "@electric-sql/pglite",
+  "name": "@astermesh/pglite",
   "version": "0.3.16",
   "private": false,
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   },
   "description": "PGlite is a WASM Postgres build packaged into a TypeScript client library that enables you to run Postgres in the browser, Node.js and Bun, with no need to install any other dependencies. It is only 3.7mb gzipped.",
   "keywords": [
@@ -159,11 +160,14 @@
   "type": "module",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "POSTGRES-LICENSE"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/electric-sql/pglite",
+    "url": "https://github.com/astermesh/pglite",
     "directory": "packages/pglite"
   },
   "scripts": {
@@ -189,7 +193,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
-    "@electric-sql/pg-protocol": "workspace:*",
+    "@astermesh/pg-protocol": "workspace:*",
     "@types/emscripten": "^1.41.1",
     "@types/node": "^20.16.11",
     "@types/node-fetch": "^2.6.11",

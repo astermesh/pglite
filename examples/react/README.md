@@ -110,25 +110,14 @@ $ pnpm run dev
   ➜  press h + enter to show help
 ```
 
-4. Install [@electric-sql/pglite](https://www.npmjs.com/package/@electric-sql/pglite) and [@electric-sql/pglite-react](https://www.npmjs.com/package/@electric-sql/pglite-react) npm packages:
+4. Install the `@astermesh/pglite` and `@astermesh/pglite-react` packages:
 
 ```
-$ pnpm install @electric-sql/pglite @electric-sql/pglite-react
-
-Packages: +2
-++
-Downloading @electric-sql/pglite@0.2.17: 9.99 MB/9.99 MB, done
-Progress: resolved 224, reused 180, downloaded 2, added 2, done
-
-dependencies:
-+ @electric-sql/pglite 0.2.17
-+ @electric-sql/pglite-react 0.2.17
-
+$ pnpm install @astermesh/pglite @astermesh/pglite-react
 ```
 
 5. You are ready start using PGlite's React API.
 Make sure to exclude pglite from dependency optimization using the [optimizeDeps option inside vite.config.js](https://pglite.dev/docs/bundler-support#vite).
 
 6. Have a look at this project's `App.tsx`, `MyPGliteComponent.tsx` and `MyPGliteItemsComponent.tsx` to see how you can create a database and use PGlite React's integration and start modifying your project. Switch to the browser to see your changes.
-
 

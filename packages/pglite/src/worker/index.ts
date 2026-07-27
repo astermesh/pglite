@@ -11,7 +11,7 @@ import type { PGlite } from '../pglite.js'
 import { BasePGlite } from '../base.js'
 import { toPostgresName, uuid } from '../utils.js'
 import { DumpTarCompressionOptions } from '../fs/tarUtils.js'
-import { BackendMessage } from '@electric-sql/pg-protocol/messages'
+import { BackendMessage } from '@astermesh/pg-protocol/messages'
 
 export type PGliteWorkerOptions<E extends Extensions = Extensions> =
   PGliteOptions<E> & {

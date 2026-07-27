@@ -5,7 +5,7 @@ A selection of tools for working with [PGlite](https://github.com/electric-sql/p
 Install with:
 
 ```bash
-npm install @electric-sql/pglite-tools
+npm install @astermesh/pglite-tools
 ```
 
 ## `pgDump`
@@ -38,8 +38,8 @@ There are a number of arguments that are automatically added to the end of the c
 ### Example
 
 ```typescript
-import { PGlite } from '@electric-sql/pglite'
-import { pgDump } from '@electric-sql/pglite-tools/pg_dump'
+import { PGlite } from '@astermesh/pglite'
+import { pgDump } from '@astermesh/pglite-tools/pg_dump'
 
 const pg = await PGlite.create()
 

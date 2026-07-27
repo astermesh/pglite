@@ -5,13 +5,13 @@ A [sync plugin](https://pglite.dev/docs/sync) for [PGlite](https://pglite.dev/) 
 To install:
 
 ```sh
-npm install @electric-sql/pglite-sync
+npm install @astermesh/pglite-sync
 ```
 
 Then add it to you PGlite instance and create any local tables needed:
 
 ```ts
-import { electricSync } from '@electric-sql/pglite-sync'
+import { electricSync } from '@astermesh/pglite-sync'
 
 const pg = await PGlite.create({
   extensions: {

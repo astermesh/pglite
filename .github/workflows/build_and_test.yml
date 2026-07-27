@@ -21,7 +21,7 @@ on:
 jobs:
   stylecheck:
     name: Stylecheck
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -36,7 +36,7 @@ jobs:
 
   build-all:
     name: Install, build all and test as described in README
-    runs-on: blacksmith-32vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     env:
       BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
       TZ: UTC
@@ -86,16 +86,16 @@ jobs:
 
   build-and-test-pglite:
     name: Build and Test packages/pglite
-    runs-on: blacksmith-32vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        node: [20.x, 21.x, 22.x, 23.x, 24.x]    
+        node: [20.x, 21.x, 22.x, 23.x, 24.x]
     defaults:
       run:
         working-directory: ./packages/pglite
     needs: [build-all]
     steps:
-
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -125,7 +125,7 @@ jobs:
           pnpm exec playwright install --with-deps
 
       - name: Build dependencies
-        run: pnpm --filter "pglite^..." build
+        run: pnpm --filter "@astermesh/pglite^..." build
 
       - name: Typecheck
         run: pnpm typecheck
@@ -155,7 +155,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pglite-package-node-v${{ matrix.node }}
-          path: ./packages/pglite/electric-sql-pglite-*.tgz
+          path: ./packages/pglite/astermesh-pglite-*.tgz
           retention-days: 60
 
       - name: Find Comment
@@ -180,10 +180,11 @@ jobs:
 
   build-and-test-pglite-dependents:
     name: Build and Test packages dependent on PGlite
-    runs-on: blacksmith-32vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
-        node: [20.x, 21.x, 22.x, 23.x, 24.x]    
+        node: [20.x, 21.x, 22.x, 23.x, 24.x]
     needs: [build-and-test-pglite]
     steps:
       - uses: actions/checkout@v4
@@ -204,32 +205,32 @@ jobs:
         with:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release/
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build pg-protocol
-        run: pnpm --filter "@electric-sql/pg-protocol" build
+        run: pnpm --filter "@astermesh/pg-protocol" build
 
       - name: Build packages
-        run: pnpm --filter="...^pglite" build
+        run: pnpm --filter="...^@astermesh/pglite" build
 
       - name: Typecheck packages
-        run: pnpm --filter="...^pglite" typecheck
+        run: pnpm --filter="...^@astermesh/pglite" typecheck
 
       - name: Test packages
-        run: pnpm --filter="...^pglite" test
+        run: pnpm --filter="...^@astermesh/pglite" test
 
       - name: Upload pglite-tools distribution artifact
         id: upload-pglite-tools-dist
         uses: actions/upload-artifact@v4
         with:
           name: pglite-tools-dist-node-v${{ matrix.node }}
-          path: ./packages/pglite-tools/dist/*        
+          path: ./packages/pglite-tools/dist/*
 
   publish-website-with-demos:
     name: Publish website with demos
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     needs: [build-and-test-pglite, build-and-test-pglite-dependents]
     steps:
       - name: Checkout
@@ -252,7 +253,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pglite-tools-release-files-node-v20.x
-          path: ./packages/pglite-tools/release          
+          path: ./packages/pglite-tools/release
 
       - name: Download PGlite build artifacts
         uses: actions/download-artifact@v4
@@ -264,7 +265,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build REPL and benchmark packages needed for examples
-        run: pnpm --filter "@electric-sql/pglite-react" --filter "@electric-sql/pglite-repl" --filter "benchmark"  build
+        run: pnpm --filter "@astermesh/pglite-react" --filter "@astermesh/pglite-repl" --filter "benchmark"  build
 
       - name: Download PGlite web build artifacts
         uses: actions/download-artifact@v4
@@ -285,12 +286,12 @@ jobs:
           PGLITE: ${{ github.workspace }}/packages/pglite
         working-directory: ${{ github.workspace }}
         run: |
-            mkdir -p /tmp/web/examples/ /tmp/web/dist /tmp/web/benchmark
-            cp -r ${PGLITE}/dist/* /tmp/web/dist/
-            cp -r ${PGLITE}/examples/* /tmp/web/examples/
-            cp -r ${{ github.workspace }}/packages/benchmark/dist/* /tmp/web/benchmark/
-            rm -rf /tmp/web/examples/pglite-tools
-            cp -r /tmp/pglite-tools /tmp/web/examples/
+          mkdir -p /tmp/web/examples/ /tmp/web/dist /tmp/web/benchmark
+          cp -r ${PGLITE}/dist/* /tmp/web/dist/
+          cp -r ${PGLITE}/examples/* /tmp/web/examples/
+          cp -r ${{ github.workspace }}/packages/benchmark/dist/* /tmp/web/benchmark/
+          rm -rf /tmp/web/examples/pglite-tools
+          cp -r /tmp/pglite-tools /tmp/web/examples/
 
       - name: Build docs
         working-directory: ./docs
@@ -353,7 +354,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24  # Required for npm trusted publishing (npm 11.5.1+)
+          node-version: 24 # Required for npm trusted publishing (npm 11.5.1+)
           cache: pnpm
 
       - name: Download PGlite WASM build artifacts

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, computed, toRaw, shallowRef } from 'vue'
-import { defaultDarkThemeInit } from '@electric-sql/pglite-repl/webcomponent'
-import { PGlite } from '@electric-sql/pglite'
+import { defaultDarkThemeInit } from '@astermesh/pglite-repl/webcomponent'
+import { PGlite } from '@astermesh/pglite'
 import { data as extensionsData } from '../extensions/extensions.data.ts'
 import * as allExtension from './allExtensions.ts'
 
