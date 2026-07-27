@@ -8,6 +8,7 @@ import {
   parseStableVersion,
   releaseLinePattern,
 } from "./release-config.mjs";
+import { validateReleaseSource } from "./release-source.mjs";
 
 const workspace = resolve(process.env.GITHUB_WORKSPACE || process.cwd());
 const releaseLine = process.env.RELEASE_LINE;
@@ -16,6 +17,16 @@ const releaseConfig = loadReleaseConfig(workspace);
 
 if (!contextPath) throw new Error("RELEASE_CONTEXT is required");
 
+function booleanEnv(name) {
+  const value = process.env[name];
+  if (value !== "true" && value !== "false") {
+    throw new Error(`${name} must be true or false`);
+  }
+  return value === "true";
+}
+
+const publish = booleanEnv("PUBLISH_MODE");
+const sourceOverride = booleanEnv("SOURCE_OVERRIDE");
 const lineMatch = releaseLinePattern.exec(releaseLine);
 if (!lineMatch) throw new Error(`invalid release line: ${releaseLine}`);
 if (releaseConfig.releaseLine !== releaseLine) {
@@ -67,16 +78,25 @@ const sourceCommit = git(["rev-parse", "HEAD"]);
 if (!commitPattern.test(sourceCommit)) {
   throw new Error(`invalid wrapper commit: ${sourceCommit}`);
 }
-try {
-  git([
-    "merge-base",
-    "--is-ancestor",
-    sourceCommit,
-    `refs/remotes/origin/${releaseLine}`,
-  ]);
-} catch {
-  throw new Error(`${sourceCommit} is not part of ${releaseLine}`);
+
+function isAncestor(ancestor, descendant) {
+  try {
+    git(["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
 }
+
+const releaseLineRef = `refs/remotes/origin/${releaseLine}`;
+validateReleaseSource({
+  publish,
+  sourceOverride,
+  sourceCommit,
+  releaseLine,
+  sourceIsOnLine: isAncestor(sourceCommit, releaseLineRef),
+  sourceExtendsLine: isAncestor(releaseLineRef, sourceCommit),
+});
 
 const inferredUpstreamWrapperCommit = git([
   "merge-base",
