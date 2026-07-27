@@ -113,6 +113,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Verify package licensing
         run: node .astermesh-ci/.github/scripts/verify-licenses.mjs
+      - name: Check workspace package style
+        run: pnpm -r --filter './packages/**' --if-present stylecheck
       - name: Build engine
         env:
           PGSRC: ${{ github.workspace }}/postgres-pglite
@@ -123,8 +125,6 @@ jobs:
         run: node .astermesh-ci/.github/scripts/record-builder-digest.mjs
       - name: Build all workspace packages
         run: pnpm ts:build
-      - name: Check workspace package style
-        run: pnpm -r --filter './packages/**' --if-present stylecheck
       - name: Typecheck workspace packages
         run: pnpm -r --filter './packages/**' --if-present typecheck
       - name: Test workspace packages
