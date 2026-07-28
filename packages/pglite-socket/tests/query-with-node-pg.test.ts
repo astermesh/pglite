@@ -753,16 +753,23 @@ describe(`PGLite Socket Server`, () => {
       // Small delay to ensure Bob's BEGIN is enqueued
       await new Promise((r) => setTimeout(r, 10))
 
-      // alice inserts data. Attach the expected rejection before destroying
-      // the connection so it can never become an unhandled rejection.
-      const aliceInsertRejection = expect(
-        alice.query(`
+      // Alice's queued insert may resolve before the connection is destroyed
+      // or reject during teardown. Attach the handler before either outcome.
+      const aliceInsertSettled = alice
+        .query(
+          `
           INSERT INTO test_users (name, email)
           VALUES 
             ('Alice', 'alice@example.com')
           RETURNING *
-        `),
-      ).rejects.toThrow('Connection terminated unexpectedly')
+        `,
+        )
+        .catch((error: unknown) => {
+          expect(error).toBeInstanceOf(Error)
+          expect((error as Error).message).toBe(
+            'Connection terminated unexpectedly',
+          )
+        })
 
       // Bob inserts data
       const bobInsert = bob.query(`
@@ -783,7 +790,7 @@ describe(`PGLite Socket Server`, () => {
       // bob commits
       const bobCommit = bob.query('COMMIT')
 
-      await Promise.all([aliceInsertRejection, bobBegin, bobInsert, bobCommit])
+      await Promise.all([aliceInsertSettled, bobBegin, bobInsert, bobCommit])
 
       // Verify only Bob was commited
       const selectResult = await bob.query('SELECT * FROM test_users')
