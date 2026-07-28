@@ -119,6 +119,7 @@ test("verification mode cannot reach release write capabilities", () => {
     "  workflow_call:\n",
   );
   const call = section(workflow, "  workflow_call:\n", "\nconcurrency:\n");
+  const build = section(workflow, "\n  build:\n", "\n  verify:\n");
   const verify = section(workflow, "\n  verify:\n", "\n  publish:\n");
   const beforePublish = workflow.slice(0, workflow.indexOf("\n  publish:\n"));
   const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
@@ -141,6 +142,11 @@ test("verification mode cannot reach release write capabilities", () => {
     /SOURCE_OVERRIDE: \$\{\{ inputs\.source_ref != '' \}\}/,
   );
   assert.match(workflow, /PUBLISH_MODE: \$\{\{ inputs\.publish \}\}/);
+  assert.ok(
+    build.indexOf("Upload package family") <
+      build.indexOf("Classify package versions"),
+    "package artifacts must be uploaded before registry classification",
+  );
 
   assert.doesNotMatch(
     beforePublish,
@@ -453,7 +459,7 @@ test("registry classification rejects reused and regressed versions", () => {
   assert.equal(classifyPackage(pkg, ["0.3.17"], "sha256:local"), "existing");
   assert.throws(
     () => classifyPackage(pkg, ["0.3.17"], "sha256:remote"),
-    /different contents/,
+    /different contents \(built sha256:local, published sha256:remote\)/,
   );
   assert.throws(() => classifyPackage(pkg, ["0.3.18"], undefined), /not newer/);
 });

@@ -17,7 +17,10 @@ export function classifyPackage(pkg, publishedVersions, publishedFingerprint) {
   if (publishedVersions.includes(pkg.version)) {
     if (publishedFingerprint !== pkg.fingerprint) {
       throw new Error(
-        `${pkg.name}@${pkg.version} already exists with different contents`,
+        [
+          `${pkg.name}@${pkg.version} already exists with different contents`,
+          `(built ${pkg.fingerprint}, published ${publishedFingerprint})`,
+        ].join(" "),
       );
     }
     return "existing";

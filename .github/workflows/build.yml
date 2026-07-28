@@ -155,14 +155,6 @@ jobs:
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
           TARBALL_DIRECTORY: ${{ runner.temp }}/release
         run: node .astermesh-ci/.github/scripts/pack-packages.mjs
-      - name: Classify package versions
-        id: classify
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKED_PACKAGES: ${{ runner.temp }}/release/packed-packages.json
-          PUBLISH_PACKAGES: ${{ runner.temp }}/release/publish-packages.json
-          RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
-        run: node .astermesh-ci/.github/scripts/classify-packages.mjs
       - name: Upload package family
         uses: actions/upload-artifact@v4
         with:
@@ -172,6 +164,14 @@ jobs:
             ${{ runner.temp }}/release/*.tgz
           if-no-files-found: error
           retention-days: 60
+      - name: Classify package versions
+        id: classify
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKED_PACKAGES: ${{ runner.temp }}/release/packed-packages.json
+          PUBLISH_PACKAGES: ${{ runner.temp }}/release/publish-packages.json
+          RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
+        run: node .astermesh-ci/.github/scripts/classify-packages.mjs
       - name: Upload engine artifacts
         uses: actions/upload-artifact@v4
         with:
