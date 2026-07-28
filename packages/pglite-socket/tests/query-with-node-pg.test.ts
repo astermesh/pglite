@@ -744,53 +744,52 @@ describe(`PGLite Socket Server`, () => {
         // Expected when we destroy the connection
       })
 
-      try {
-        // alice starts a transaction
-        const aliceBegin = await alice.query('BEGIN')
-        expect(aliceBegin.command).toBe('BEGIN')
+      // alice starts a transaction
+      const aliceBegin = await alice.query('BEGIN')
+      expect(aliceBegin.command).toBe('BEGIN')
 
-        // bob begins its own transaction
-        const bobBegin = bob.query('BEGIN')
+      // bob begins its own transaction
+      const bobBegin = bob.query('BEGIN')
 
-        // Small delay to ensure client2.BEGIN is enqueued
-        await new Promise((r) => setTimeout(r, 10))
+      // Small delay to ensure client2.BEGIN is enqueued
+      await new Promise((r) => setTimeout(r, 10))
 
-        // alice inserts data
+      // alice inserts data. Attach the expected rejection before destroying
+      // the connection so it can never become an unhandled rejection.
+      const aliceInsertRejection = expect(
         alice.query(`
           INSERT INTO test_users (name, email)
           VALUES 
             ('Alice', 'alice@example.com')
           RETURNING *
-        `)
+        `),
+      ).rejects.toThrow('Connection terminated unexpectedly')
 
-        // client inserts data
-        const bobInsert = bob.query(`
+      // client inserts data
+      const bobInsert = bob.query(`
           INSERT INTO test_users (name, email)
           VALUES 
             ('Bob', 'bob@example.com')
           RETURNING *
         `)
 
-        // Small delay to ensure both inserts are enqueued
-        await new Promise((r) => setTimeout(r, 10))
+      // Small delay to ensure both inserts are enqueued
+      await new Promise((r) => setTimeout(r, 10))
 
-        // Client2 abruptly disconnects (simulating connection abort)
-        // This should trigger clearTransactionIfNeeded which rolls back
-        // the transaction and processes pending queries
-        ;(alice as any).connection.stream.destroy()
+      // Client2 abruptly disconnects (simulating connection abort)
+      // This should trigger clearTransactionIfNeeded which rolls back
+      // the transaction and processes pending queries
+      ;(alice as any).connection.stream.destroy()
 
-        // bob commits
-        const bobCommit = bob.query('COMMIT')
+      // bob commits
+      const bobCommit = bob.query('COMMIT')
 
-        await Promise.all([bobBegin, bobInsert, bobCommit])
+      await Promise.all([aliceInsertRejection, bobBegin, bobInsert, bobCommit])
 
-        // Verify only Bob was commited
-        const selectResult = await bob.query('SELECT * FROM test_users')
-        expect(selectResult.rows.length).toBe(1)
-        expect(selectResult.rows[0].name).toBe('Bob')
-      } catch {
-        // swallow
-      }
+      // Verify only Bob was commited
+      const selectResult = await bob.query('SELECT * FROM test_users')
+      expect(selectResult.rows.length).toBe(1)
+      expect(selectResult.rows[0].name).toBe('Bob')
     }, 30000)
   })
 
