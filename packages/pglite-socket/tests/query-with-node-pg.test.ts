@@ -739,9 +739,8 @@ describe(`PGLite Socket Server`, () => {
       }
       await alice.connect()
 
-      // Suppress the expected "Connection terminated unexpectedly" error
-      alice.on('error', () => {
-        // Expected when we destroy the connection
+      alice.on('error', (error) => {
+        expect(error.message).toBe('Connection terminated unexpectedly')
       })
 
       // alice starts a transaction
@@ -751,7 +750,7 @@ describe(`PGLite Socket Server`, () => {
       // bob begins its own transaction
       const bobBegin = bob.query('BEGIN')
 
-      // Small delay to ensure client2.BEGIN is enqueued
+      // Small delay to ensure Bob's BEGIN is enqueued
       await new Promise((r) => setTimeout(r, 10))
 
       // alice inserts data. Attach the expected rejection before destroying
@@ -765,7 +764,7 @@ describe(`PGLite Socket Server`, () => {
         `),
       ).rejects.toThrow('Connection terminated unexpectedly')
 
-      // client inserts data
+      // Bob inserts data
       const bobInsert = bob.query(`
           INSERT INTO test_users (name, email)
           VALUES 
@@ -776,7 +775,7 @@ describe(`PGLite Socket Server`, () => {
       // Small delay to ensure both inserts are enqueued
       await new Promise((r) => setTimeout(r, 10))
 
-      // Client2 abruptly disconnects (simulating connection abort)
+      // Alice abruptly disconnects (simulating connection abort)
       // This should trigger clearTransactionIfNeeded which rolls back
       // the transaction and processes pending queries
       ;(alice as any).connection.stream.destroy()
