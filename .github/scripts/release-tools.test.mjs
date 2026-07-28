@@ -32,7 +32,7 @@ import {
 } from "./dist-tags.mjs";
 import { validateReleaseConfig } from "./release-config.mjs";
 import { validateReleaseSource } from "./release-source.mjs";
-import { remoteTagCommit } from "./remote-tag.mjs";
+import { planPackageTag, remoteTagCommit } from "./remote-tag.mjs";
 
 const validConfig = {
   schemaVersion: 1,
@@ -760,6 +760,89 @@ test("remote package tags resolve to their commit targets", () => {
     () => remoteTagCommit(`invalid\trefs/tags/${tag}\n`, tag),
     /invalid remote tag record/,
   );
+});
+
+test("existing package tags retain their original matching release commit", () => {
+  const originalCommit = "a".repeat(40);
+  assert.deepEqual(
+    planPackageTag({
+      tag: "@astermesh/pglite@0.3.17",
+      remoteCommit: originalCommit,
+      currentCommit: "b".repeat(40),
+      packageName: "@astermesh/pglite",
+      packageVersion: "0.3.17",
+      manifest: {
+        name: "@astermesh/pglite",
+        version: "0.3.17",
+      },
+    }),
+    { action: "keep", commit: originalCommit },
+  );
+});
+
+test("missing package tags are created for the current release", () => {
+  const currentCommit = "b".repeat(40);
+  assert.deepEqual(
+    planPackageTag({
+      tag: "@astermesh/pglite-socket@0.0.23",
+      remoteCommit: undefined,
+      currentCommit,
+      packageName: "@astermesh/pglite-socket",
+      packageVersion: "0.0.23",
+      manifest: undefined,
+    }),
+    { action: "create", commit: currentCommit },
+  );
+});
+
+test("existing package tag targets must declare the tagged identity", () => {
+  const common = {
+    tag: "@astermesh/pglite@0.3.17",
+    remoteCommit: "a".repeat(40),
+    currentCommit: "b".repeat(40),
+    packageName: "@astermesh/pglite",
+    packageVersion: "0.3.17",
+  };
+
+  assert.throws(
+    () =>
+      planPackageTag({
+        ...common,
+        manifest: {
+          name: "@astermesh/pglite",
+          version: "0.3.16",
+        },
+      }),
+    /does not declare @astermesh\/pglite@0\.3\.17/,
+  );
+  assert.throws(
+    () =>
+      planPackageTag({
+        ...common,
+        manifest: {
+          name: "@astermesh/pglite-react",
+          version: "0.3.17",
+        },
+      }),
+    /does not declare @astermesh\/pglite@0\.3\.17/,
+  );
+  assert.throws(
+    () => planPackageTag({ ...common, manifest: undefined }),
+    /does not declare @astermesh\/pglite@0\.3\.17/,
+  );
+});
+
+test("package Git tags are preflighted before registry tags mutate", () => {
+  const finalizer = readFileSync(
+    new URL("./finalize-release.mjs", import.meta.url),
+    "utf8",
+  );
+  const gitTagPreflight = finalizer.indexOf("const gitTagPlans");
+  const registryFinalization = finalizer.indexOf("finalizeDistTags({");
+
+  assert.notEqual(gitTagPreflight, -1);
+  assert.notEqual(registryFinalization, -1);
+  assert.ok(gitTagPreflight < registryFinalization);
 });
 
 test("automatic publication reacts only to package version changes", () => {

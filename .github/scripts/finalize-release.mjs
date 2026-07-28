@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { finalizeDistTags } from "./dist-tags.mjs";
-import { remoteTagCommit } from "./remote-tag.mjs";
+import { planPackageTag, remoteTagCommit } from "./remote-tag.mjs";
 
 const context = JSON.parse(readFileSync(process.env.RELEASE_CONTEXT, "utf8"));
 const stagingTag = process.env.STAGING_TAG;
@@ -41,15 +41,7 @@ for (const pkg of context.packages) {
   }
 }
 
-finalizeDistTags({
-  packages: context.packages,
-  distTag: context.distTag,
-  promoteLatest,
-  runNpm: npm,
-});
-
-const missingGitTags = [];
-for (const pkg of context.packages) {
+const gitTagPlans = context.packages.map((pkg) => {
   const tag = `${pkg.name}@${pkg.version}`;
   const remote = git([
     "ls-remote",
@@ -59,15 +51,33 @@ for (const pkg of context.packages) {
     `refs/tags/${tag}^{}`,
   ]);
   const remoteCommit = remoteTagCommit(remote, tag);
-  if (remoteCommit) {
-    if (remoteCommit !== context.wrapper.astermesh.commit) {
-      throw new Error(
-        `${tag} points to ${remoteCommit}, expected ${context.wrapper.astermesh.commit}`,
-      );
-    }
-    continue;
-  }
-  git(["tag", tag, context.wrapper.astermesh.commit]);
+  const manifest = remoteCommit
+    ? JSON.parse(
+        git(["show", `${remoteCommit}:${pkg.directory}/package.json`]),
+      )
+    : undefined;
+  const plan = planPackageTag({
+    tag,
+    remoteCommit,
+    currentCommit: context.wrapper.astermesh.commit,
+    packageName: pkg.name,
+    packageVersion: pkg.version,
+    manifest,
+  });
+  return { plan, tag };
+});
+
+finalizeDistTags({
+  packages: context.packages,
+  distTag: context.distTag,
+  promoteLatest,
+  runNpm: npm,
+});
+
+const missingGitTags = [];
+for (const { plan, tag } of gitTagPlans) {
+  if (plan.action === "keep") continue;
+  git(["tag", tag, plan.commit]);
   missingGitTags.push(tag);
 }
 if (missingGitTags.length > 0) {
