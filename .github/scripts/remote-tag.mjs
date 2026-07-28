@@ -17,3 +17,27 @@ export function remoteTagCommit(output, tag) {
 
   return peeled || direct;
 }
+
+export function planPackageTag({
+  tag,
+  remoteCommit,
+  currentCommit,
+  packageName,
+  packageVersion,
+  manifest,
+}) {
+  if (!remoteCommit) {
+    return { action: "create", commit: currentCommit };
+  }
+  if (
+    !manifest ||
+    typeof manifest !== "object" ||
+    manifest.name !== packageName ||
+    manifest.version !== packageVersion
+  ) {
+    throw new Error(
+      `${tag} target does not declare ${packageName}@${packageVersion}`,
+    );
+  }
+  return { action: "keep", commit: remoteCommit };
+}
