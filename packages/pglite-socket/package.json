@@ -1,6 +1,6 @@
 {
   "name": "@astermesh/pglite-socket",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "A socket implementation for PGlite enabling remote connections",
   "author": "Electric DB Limited",
   "homepage": "https://pglite.dev",
