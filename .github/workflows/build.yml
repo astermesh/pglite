@@ -70,13 +70,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.SOURCE_REF }}
           fetch-depth: 0
           submodules: recursive
       - name: Checkout release tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
@@ -87,7 +87,7 @@ jobs:
           RELEASE_CONTEXT: ${{ runner.temp }}/release-context.json
         run: node .astermesh-ci/.github/scripts/resolve-release.mjs
       - name: Upload release identity
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-release-identity-${{ github.run_id }}
           path: ${{ runner.temp }}/release-context.json
@@ -104,25 +104,25 @@ jobs:
       matrix: ${{ steps.classify.outputs.matrix }}
     steps:
       - name: Checkout release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.SOURCE_REF }}
           fetch-depth: 0
           submodules: recursive
       - name: Checkout release tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
           path: .astermesh-ci
       - name: Download release identity
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-release-identity-${{ github.run_id }}
           path: ${{ runner.temp }}/release
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
@@ -156,7 +156,7 @@ jobs:
           TARBALL_DIRECTORY: ${{ runner.temp }}/release
         run: node .astermesh-ci/.github/scripts/pack-packages.mjs
       - name: Upload package family
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-package-family-${{ github.run_id }}
           path: |
@@ -173,7 +173,7 @@ jobs:
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
         run: node .astermesh-ci/.github/scripts/classify-packages.mjs
       - name: Upload engine artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-engine-${{ github.run_id }}
           path: |
@@ -182,7 +182,7 @@ jobs:
           if-no-files-found: error
           retention-days: 60
       - name: Upload package distributions
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-distributions-${{ github.run_id }}
           path: packages/pglite*/dist/**
@@ -202,18 +202,18 @@ jobs:
       matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
     steps:
       - name: Checkout attestation contract
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
           path: .astermesh-ci
       - name: Download package family
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-package-family-${{ github.run_id }}
           path: ${{ runner.temp }}/release
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
@@ -238,7 +238,7 @@ jobs:
             -s .astermesh-ci/.github/attestations/fork-lineage-v1.schema.json \
             -d "$LINEAGE_PATH"
       - name: Upload verified fork lineage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-fork-lineage-${{ matrix.filename }}
           path: ${{ steps.lineage.outputs.predicate }}
@@ -296,16 +296,16 @@ jobs:
       matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
     steps:
       - name: Download package family
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-package-family-${{ github.run_id }}
           path: ${{ runner.temp }}/release
       - name: Download verified fork lineage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-fork-lineage-${{ matrix.filename }}
           path: ${{ runner.temp }}/lineage
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
@@ -392,23 +392,23 @@ jobs:
       packages: write
     steps:
       - name: Checkout release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ env.SOURCE_REF }}
           fetch-depth: 0
       - name: Checkout release tooling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
           path: .astermesh-ci
       - name: Download package family
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-package-family-${{ github.run_id }}
           path: ${{ runner.temp }}/release
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
@@ -421,7 +421,7 @@ jobs:
           RELEASE_SUMMARY: ${{ runner.temp }}/release/release-summary.json
         run: node .astermesh-ci/.github/scripts/finalize-release.mjs
       - name: Upload release summary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-release-summary-${{ github.run_id }}
           path: ${{ runner.temp }}/release/release-summary.json
