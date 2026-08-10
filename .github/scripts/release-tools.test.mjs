@@ -120,7 +120,8 @@ test("verification mode cannot reach release write capabilities", () => {
   );
   const call = section(workflow, "  workflow_call:\n", "\nconcurrency:\n");
   const build = section(workflow, "\n  build:\n", "\n  verify:\n");
-  const verify = section(workflow, "\n  verify:\n", "\n  publish:\n");
+  const verify = section(workflow, "\n  verify:\n", "\n  approval:\n");
+  const approval = section(workflow, "\n  approval:\n", "\n  publish:\n");
   const beforePublish = workflow.slice(0, workflow.indexOf("\n  publish:\n"));
   const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
   const finalize = workflow.slice(workflow.indexOf("\n  finalize:\n"));
@@ -163,8 +164,24 @@ test("verification mode cannot reach release write capabilities", () => {
   assert.match(verify, /Upload verified fork lineage/);
   assert.match(verify, /npm publish "\$TARBALL" \\\n            --dry-run/);
 
+  assert.match(approval, /inputs\.publish/);
+  assert.match(approval, /- build/);
+  assert.match(approval, /- verify/);
+  assert.match(approval, /environment: packages-production/);
+  assert.match(approval, /permissions: \{\}/);
+  assert.match(
+    approval,
+    /run_attempt: \$\{\{ steps\.approved\.outputs\.run_attempt \}\}/,
+  );
+  assert.match(approval, /run_attempt=\$GITHUB_RUN_ATTEMPT/);
+
   assert.match(publish, /inputs\.publish/);
   assert.match(publish, /- verify/);
+  assert.match(publish, /- approval/);
+  assert.match(
+    publish,
+    /needs\.approval\.outputs\.run_attempt == github\.run_attempt/,
+  );
   assert.match(publish, /Download verified fork lineage/);
   assert.doesNotMatch(publish, /write-lineage\.mjs/);
   assert.match(
@@ -175,9 +192,17 @@ test("verification mode cannot reach release write capabilities", () => {
   assert.match(publish, /attestations: write/);
   assert.match(publish, /id-token: write/);
   assert.match(publish, /packages: write/);
+  assert.doesNotMatch(publish, /environment:/);
 
   assert.match(finalize, /inputs\.publish/);
   assert.match(finalize, /- verify/);
+  assert.match(finalize, /- approval/);
+  assert.match(finalize, /- publish/);
+  assert.match(
+    finalize,
+    /needs\.approval\.outputs\.run_attempt == github\.run_attempt/,
+  );
+  assert.doesNotMatch(finalize, /environment:/);
 });
 
 test("release-tooling CI verifies the live package query read-only", () => {
