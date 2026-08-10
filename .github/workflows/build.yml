@@ -254,13 +254,35 @@ jobs:
             --ignore-scripts \
             --registry=https://npm.pkg.github.com
 
+  approval:
+    name: Approve package family publication
+    needs:
+      - build
+      - verify
+    if: >-
+      always() &&
+      inputs.publish &&
+      needs.build.result == 'success' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: packages-production
+    permissions: {}
+    outputs:
+      run_attempt: ${{ steps.approved.outputs.run_attempt }}
+    steps:
+      - name: Record publication approval
+        id: approved
+        run: echo "run_attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
   publish:
     name: Attest and publish ${{ matrix.name }}@${{ matrix.version }}
     needs:
       - build
       - verify
+      - approval
     if: >-
       inputs.publish &&
+      needs.approval.outputs.run_attempt == github.run_attempt &&
       needs.build.outputs.count != '0'
     runs-on: ubuntu-latest
     permissions:
@@ -354,12 +376,15 @@ jobs:
     needs:
       - build
       - verify
+      - approval
       - publish
     if: >-
       always() &&
       inputs.publish &&
       needs.build.result == 'success' &&
       (needs.verify.result == 'success' || needs.verify.result == 'skipped') &&
+      needs.approval.result == 'success' &&
+      needs.approval.outputs.run_attempt == github.run_attempt &&
       (needs.publish.result == 'success' || needs.publish.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
