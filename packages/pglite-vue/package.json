@@ -1,6 +1,6 @@
 {
   "name": "@astermesh/pglite-vue",
-  "version": "0.2.34",
+  "version": "0.2.35",
   "description": "Vue hooks for using PGlite",
   "type": "module",
   "private": false,

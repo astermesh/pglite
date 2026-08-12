@@ -1,6 +1,6 @@
 {
   "name": "@astermesh/pglite-react",
-  "version": "0.2.34",
+  "version": "0.2.35",
   "description": "Hooks for using PGlite",
   "type": "module",
   "private": false,
