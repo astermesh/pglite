@@ -23,9 +23,9 @@ jobs:
     name: Stylecheck
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -42,11 +42,11 @@ jobs:
       TZ: UTC
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: recursive
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload PGlite Interim to Github artifacts
         id: upload-pglite-interim-build-files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-interim-build-files-node-v20.x
           path: ./packages/pglite/release/**
@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload pglite-tools build artifacts to Github artifacts
         id: upload-pglite-tools-release-files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release/**
@@ -96,25 +96,25 @@ jobs:
         working-directory: ./packages/pglite
     needs: [build-all]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
-      - uses: denoland/setup-deno@v1
+      - uses: denoland/setup-deno@11b63cf76cfcafb4e43f97b6cad24d8e8438f62d # v1
         with:
           deno-version: vx.x.x
 
       - name: Download PGlite WASM build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-interim-build-files-node-v20.x
           path: ./packages/pglite/release
 
       - name: Download pglite-tools WASM build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release
@@ -145,21 +145,21 @@ jobs:
 
       - name: Upload PGlite distribution artifact
         id: upload-pglite-dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-dist-node-v${{ matrix.node }}
           path: ./packages/pglite/dist/*
 
       - name: Upload PGlite package artifact
         id: upload-pglite-package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-package-node-v${{ matrix.node }}
           path: ./packages/pglite/astermesh-pglite-*.tgz
           retention-days: 60
 
       - name: Find Comment
-        uses: peter-evans/find-comment@v3
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
         id: fc
         if: github.event_name == 'pull_request'
         with:
@@ -168,7 +168,7 @@ jobs:
           body-includes: '- PGlite:'
 
       - name: Create or update build outputs comment
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         with:
@@ -187,21 +187,21 @@ jobs:
         node: [20.x, 21.x, 22.x, 23.x, 24.x]
     needs: [build-and-test-pglite]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
       - name: Download PGlite build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-dist-node-v${{ matrix.node }}
           path: ./packages/pglite/dist/
 
       - name: Download pglite-tools WASM build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release/
@@ -223,7 +223,7 @@ jobs:
 
       - name: Upload pglite-tools distribution artifact
         id: upload-pglite-tools-dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-tools-dist-node-v${{ matrix.node }}
           path: ./packages/pglite-tools/dist/*
@@ -234,29 +234,29 @@ jobs:
     needs: [build-and-test-pglite, build-and-test-pglite-dependents]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           submodules: true
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
 
       - name: Download PGlite WASM build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-interim-build-files-node-v20.x
           path: ./packages/pglite/release
 
       - name: Download pglite-tools WASM build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release
 
       - name: Download PGlite build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-dist-node-v20.x
           path: ./packages/pglite/dist/
@@ -268,13 +268,13 @@ jobs:
         run: pnpm --filter "@astermesh/pglite-react" --filter "@astermesh/pglite-repl" --filter "benchmark"  build
 
       - name: Download PGlite web build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-interim-build-files-node-v20.x
           path: /tmp/web
 
       - name: Download pglite-tools dist artifacts to tmp
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-tools-dist-node-v20.x
           path: /tmp/pglite-tools
@@ -301,14 +301,14 @@ jobs:
 
       - name: Upload Demos to Github artifacts
         id: upload-demos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-demos
           path: /tmp/web/**
           retention-days: 60
 
       - name: Find Comment
-        uses: peter-evans/find-comment@v3
+        uses: peter-evans/find-comment@3eae4d37986fb5a8592848f6a574fdf654e61f9e # v3
         id: fc
         if: github.event_name == 'pull_request'
         with:
@@ -317,7 +317,7 @@ jobs:
           body-includes: Built bundles
 
       - name: Create or update build outputs comment
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
         with:
@@ -328,7 +328,7 @@ jobs:
           edit-mode: append
 
       - name: Deploy website to Netlify
-        uses: nwtgck/actions-netlify@v3.0
+        uses: nwtgck/actions-netlify@4cbaf4c08f1a7bfa537d6113472ef4424e4eb654 # v3.0
         with:
           publish-dir: '/tmp/web'
           production-branch: master
@@ -350,21 +350,21 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [build-all]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24 # Required for npm trusted publishing (npm 11.5.1+)
           cache: pnpm
 
       - name: Download PGlite WASM build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-interim-build-files-node-v20.x
           path: ./packages/pglite/release
 
       - name: Download pglite-tools build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release/
@@ -373,7 +373,7 @@ jobs:
       - run: pnpm --filter "./packages/**" build
       - name: Create Release Pull Request or Publish
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         with:
           version: pnpm ci:version
           publish: pnpm ci:publish
