@@ -142,9 +142,21 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
 
-      - uses: denoland/setup-deno@11b63cf76cfcafb4e43f97b6cad24d8e8438f62d # v1
-        with:
-          deno-version: vx.x.x
+      # A 503 from the release host has reddened this gate on an unchanged head:
+      # the toolchain is re-resolved and re-downloaded in every matrix entry, and
+      # two retries 16s apart are not enough to ride out a bad minute.
+      - name: Install Deno
+        env:
+          DENO_VERSION: v2.9.5
+        run: |
+          curl --fail --location --silent --show-error \
+            --retry 6 --retry-all-errors --retry-delay 5 \
+            --output "${RUNNER_TEMP}/deno.zip" \
+            "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip"
+          mkdir -p "${HOME}/.deno/bin"
+          unzip -q -o "${RUNNER_TEMP}/deno.zip" -d "${HOME}/.deno/bin"
+          chmod +x "${HOME}/.deno/bin/deno"
+          echo "${HOME}/.deno/bin" >> "${GITHUB_PATH}"
 
       - name: Download PGlite WASM build artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
