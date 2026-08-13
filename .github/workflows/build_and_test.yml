@@ -37,6 +37,9 @@ jobs:
   build-all:
     name: Install, build all and test as described in README
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: read
     env:
       BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
       TZ: UTC
@@ -44,12 +47,15 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          fetch-depth: 0
           submodules: recursive
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@astermesh'
       - name: Install
         working-directory: ${{ github.workspace }}
         run: pnpm install
@@ -83,6 +89,39 @@ jobs:
           name: pglite-tools-release-files-node-v20.x
           path: ./packages/pglite-tools/release/**
           retention-days: 60
+
+      # A release line's merge is the point of no return: it starts the publication.
+      # Reach the publication's own verdict here instead, on the merge result.
+      - name: Checkout release tooling
+        if: >-
+          github.event_name == 'pull_request' &&
+          startsWith(github.base_ref, 'astermesh/v')
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: astermesh/pglite
+          ref: astermesh/ci
+          sparse-checkout: .github
+          path: .astermesh-ci
+
+      - name: Verify package family against the registry
+        if: >-
+          github.event_name == 'pull_request' &&
+          startsWith(github.base_ref, 'astermesh/v')
+        working-directory: ${{ github.workspace }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKED_PACKAGES: ${{ runner.temp }}/candidate/packed-packages.json
+          PUBLISH_PACKAGES: ${{ runner.temp }}/candidate/publish-packages.json
+          PUBLISH_MODE: 'false'
+          RELEASE_CONTEXT: ${{ runner.temp }}/candidate/release-context.json
+          RELEASE_LINE: ${{ github.base_ref }}
+          SOURCE_OVERRIDE: 'true'
+          TARBALL_DIRECTORY: ${{ runner.temp }}/candidate
+        run: |
+          mkdir -p "$TARBALL_DIRECTORY"
+          node .astermesh-ci/.github/scripts/resolve-release.mjs
+          node .astermesh-ci/.github/scripts/pack-packages.mjs
+          node .astermesh-ci/.github/scripts/classify-packages.mjs
 
   build-and-test-pglite:
     name: Build and Test packages/pglite
