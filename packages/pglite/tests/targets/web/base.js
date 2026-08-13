@@ -11,10 +11,11 @@ const PGLITE_LIVE_PATH = '../../../dist/live/index.js'
 const WORKER_PATH = '/tests/targets/web/worker.js'
 
 // Starting Postgres in a browser is CPU-bound WASM work, and these suites share a
-// hosted runner with whatever else it is doing. A cold start that takes a couple of
-// seconds on an idle machine has been measured five times slower on a loaded one, so
-// budget for the slow machine instead of reporting it as a failure.
-const TEST_TIMEOUT = 120_000
+// hosted runner with whatever else it is doing, so a cold start runs several times
+// slower on a loaded machine than on an idle one. Give every test the budget the
+// heaviest one already asked for: enough that a slow machine is not reported as a
+// failure, without leaving a wedged suite to burn minutes before it gives up.
+const TEST_TIMEOUT = 60_000
 
 const useWorkerForBbFilename = ['opfs-ahp://base']
 
@@ -38,15 +39,10 @@ export function tests(env, dbFilename, target) {
       `)
     }
 
-    // Each page carries its own Postgres WASM heap, so the suite page has to be the
-    // only one still standing when the tests are done — WebKit runs out of WASM
-    // memory long before the browser is closed if peer pages pile up.
     afterAll(async () => {
-      const pagesLeftOpen = context ? context.pages().length : 1
       if (browser) {
         await browser.close()
       }
-      expect(pagesLeftOpen, 'a test that opens a page must close it').toBe(1)
     })
 
     beforeAll(async () => {
@@ -82,6 +78,18 @@ export function tests(env, dbFilename, target) {
       })
 
       return peerPage
+    }
+
+    // Each page carries its own Postgres WASM heap, and the suite page outlives every
+    // test, so whatever a test opens on top of it has to be gone before the next one
+    // starts — WebKit runs out of WASM memory long before the browser is closed if
+    // peer pages pile up. Asserted on the passing path only: a test that already
+    // failed was cut off before its cleanup and has its own error to report.
+    function expectOnlySuitePageOpen() {
+      expect(
+        context.pages(),
+        'a test must close the pages it opens',
+      ).toHaveLength(1)
     }
 
     // A PGliteWorker holds its Postgres instance until it is closed, and the suite
@@ -402,6 +410,8 @@ export function tests(env, dbFilename, target) {
         } finally {
           await Promise.allSettled([releaseSuitePageWorker(), page2.close()])
         }
+
+        expectOnlySuitePageOpen()
       },
       TEST_TIMEOUT,
     )
@@ -543,6 +553,8 @@ export function tests(env, dbFilename, target) {
         } finally {
           await Promise.allSettled([releaseSuitePageWorker(), page2.close()])
         }
+
+        expectOnlySuitePageOpen()
       },
       TEST_TIMEOUT,
     )
