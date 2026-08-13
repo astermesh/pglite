@@ -205,6 +205,30 @@ test("verification mode cannot reach release write capabilities", () => {
   assert.doesNotMatch(finalize, /environment:/);
 });
 
+test("verification runs never share the release concurrency group", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+  const concurrency = section(workflow, "\nconcurrency:\n", "\nenv:\n");
+
+  assert.match(concurrency, /\$\{\{ inputs\.publish/);
+  assert.match(
+    concurrency,
+    /&& format\('pglite-release-\{0\}', inputs\.line \|\| inputs\.ref\)/,
+  );
+  assert.match(
+    concurrency,
+    /\|\| format\('pglite-verify-\{0\}', github\.run_id\)/,
+  );
+  assert.equal(
+    concurrency.match(/pglite-release-/g).length,
+    1,
+    "the serialized release group must exist only on the publish branch",
+  );
+  assert.match(concurrency, /cancel-in-progress: false/);
+});
+
 test("release-tooling CI verifies the live package query read-only", () => {
   const workflow = readFileSync(
     new URL("../workflows/test-release-tooling.yml", import.meta.url),
