@@ -153,6 +153,7 @@ jobs:
             --retry 6 --retry-all-errors --retry-delay 5 \
             --output "${RUNNER_TEMP}/deno.zip" \
             "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip"
+          mkdir -p "${HOME}/.deno/bin"
           unzip -q -o "${RUNNER_TEMP}/deno.zip" -d "${HOME}/.deno/bin"
           chmod +x "${HOME}/.deno/bin/deno"
           echo "${HOME}/.deno/bin" >> "${GITHUB_PATH}"
