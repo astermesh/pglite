@@ -34,6 +34,21 @@ jobs:
       - name: Stylecheck packages
         run: pnpm -r stylecheck
 
+  verify-package-family:
+    name: Verify package family against the registry
+    if: >-
+      github.event_name == 'pull_request' &&
+      startsWith(github.base_ref, 'astermesh/v')
+    permissions:
+      contents: read
+      packages: read
+    uses: astermesh/pglite/.github/workflows/build.yml@astermesh/ci
+    with:
+      ref: ${{ github.event.pull_request.base.sha }}
+      line: ${{ github.base_ref }}
+      source_ref: refs/pull/${{ github.event.pull_request.number }}/merge
+      publish: false
+
   build-all:
     name: Install, build all and test as described in README
     runs-on: ubuntu-22.04
