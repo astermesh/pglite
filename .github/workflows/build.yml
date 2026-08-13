@@ -53,7 +53,10 @@ on:
         type: boolean
 
 concurrency:
-  group: pglite-release-${{ inputs.line || inputs.ref }}
+  group: >-
+    ${{ inputs.publish
+    && format('pglite-release-{0}', inputs.line || inputs.ref)
+    || format('pglite-verify-{0}', github.run_id) }}
   cancel-in-progress: false
 
 env:
