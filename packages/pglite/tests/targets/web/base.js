@@ -33,9 +33,11 @@ export function tests(env, dbFilename, target) {
     }
 
     afterAll(async () => {
+      const pagesLeftOpen = context ? context.pages().length : 1
       if (browser) {
         await browser.close()
       }
+      expect(pagesLeftOpen, 'a test that opens a page must close it').toBe(1)
     })
 
     beforeAll(async () => {
