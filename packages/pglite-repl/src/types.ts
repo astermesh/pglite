@@ -1,4 +1,4 @@
-import { type Results as BaseResults } from '@astermesh/pglite'
+import { type Results as BaseResults } from '@simthis/pglite'
 
 export type Results = BaseResults<{ [key: string]: unknown }[]>
 

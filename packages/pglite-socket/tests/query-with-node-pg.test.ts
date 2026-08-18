@@ -8,7 +8,7 @@ import {
   afterEach,
 } from 'vitest'
 import { Client } from 'pg'
-import { PGlite } from '@astermesh/pglite'
+import { PGlite } from '@simthis/pglite'
 import { PGLiteSocketServer } from '../src'
 import { spawn, ChildProcess } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -817,7 +817,7 @@ describe(`PGLite Socket Server`, () => {
           '--path',
           UNIX_SOCKET_PATH,
           '--extensions',
-          'vector,pg_uuidv7,@astermesh/pglite/pg_hashids:pg_hashids',
+          'vector,pg_uuidv7,@simthis/pglite/pg_hashids:pg_hashids',
         ],
         {
           stdio: ['ignore', 'pipe', 'pipe'],

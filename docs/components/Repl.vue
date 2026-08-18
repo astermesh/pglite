@@ -1,9 +1,9 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue'
-import '@astermesh/pglite-repl/webcomponent'
-import { defaultDarkThemeInit } from '@astermesh/pglite-repl/webcomponent'
-import { PGlite } from '@astermesh/pglite'
-import { vector } from '@astermesh/pglite/vector'
+import '@simthis/pglite-repl/webcomponent'
+import { defaultDarkThemeInit } from '@simthis/pglite-repl/webcomponent'
+import { PGlite } from '@simthis/pglite'
+import { vector } from '@simthis/pglite/vector'
 
 const pg = new PGlite({
   extensions: {

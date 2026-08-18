@@ -1,4 +1,4 @@
-import { PGlite } from '@astermesh/pglite'
+import { PGlite } from '@simthis/pglite'
 import './App.css'
 import { Repl } from './Repl'
 

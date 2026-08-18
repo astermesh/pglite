@@ -37,14 +37,14 @@ This is the REPL with a full PGlite Postgres embedded in the page:
 ## React Component
 
 ```bash
-npm install @astermesh/pglite-repl
+npm install @simthis/pglite-repl
 ```
 
 then to include in a page:
 
 ```tsx
-import { PGlite } from '@astermesh/pglite'
-import { Repl } from '@astermesh/pglite-repl'
+import { PGlite } from '@simthis/pglite'
+import { Repl } from '@simthis/pglite-repl'
 
 function MyComponent() {
   const pg = new PGlite()
@@ -84,8 +84,8 @@ component for easy inclusion in a bundled application or another framework.
 <pglite-repl id="repl"></pglite-repl>
 
 <script type="module">
-  import { PGlite } from '@astermesh/pglite'
-  import '@astermesh/pglite-repl/webcomponent'
+  import { PGlite } from '@simthis/pglite'
+  import '@simthis/pglite-repl/webcomponent'
 
   // Create a PGlite instance
   const pg = new PGlite()
@@ -104,8 +104,8 @@ The REPL Web Component can be used with Vue.js:
 
 ```vue
 <script setup>
-import { PGlite } from '@astermesh/pglite'
-import '@astermesh/pglite-repl/webcomponent'
+import { PGlite } from '@simthis/pglite'
+import '@simthis/pglite-repl/webcomponent'
 
 const pg = new PGlite()
 </script>

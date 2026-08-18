@@ -5,7 +5,7 @@ This package implements Vue hooks for [PGLite](https://pglite.dev/) on top of th
 To install:
 
 ```sh
-npm install @astermesh/pglite-vue
+npm install @simthis/pglite-vue
 ```
 
 The hooks this package provides are:

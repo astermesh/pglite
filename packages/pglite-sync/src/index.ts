@@ -6,7 +6,7 @@ import {
   ShapeStreamOptions,
 } from '@electric-sql/client'
 import { MultiShapeStream } from '@electric-sql/experimental'
-import type { Extension, PGliteInterface } from '@astermesh/pglite'
+import type { Extension, PGliteInterface } from '@simthis/pglite'
 import {
   migrateSubscriptionMetadataTables,
   getSubscriptionState,

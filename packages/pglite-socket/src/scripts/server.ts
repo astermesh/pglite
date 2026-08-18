@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { PGlite, DebugLevel } from '@astermesh/pglite'
-import type { Extension, Extensions } from '@astermesh/pglite'
+import { PGlite, DebugLevel } from '@simthis/pglite'
+import type { Extension, Extensions } from '@simthis/pglite'
 import { PGLiteSocketServer } from '../index'
 import { parseArgs } from 'node:util'
 import { spawn, ChildProcess } from 'node:child_process'
@@ -189,17 +189,17 @@ class PGLiteServerRunner {
             )
           }
         } else if (builtInExtensions.includes(name)) {
-          // Built-in extension (e.g., @astermesh/pglite/vector)
-          const mod = await import(`@astermesh/pglite/${name}`)
+          // Built-in extension (e.g., @simthis/pglite/vector)
+          const mod = await import(`@simthis/pglite/${name}`)
           ext = mod[name] as Extension
           if (ext) {
             extensions[name] = ext
             console.log(`Imported extension: ${name}`)
           }
         } else {
-          // Try contrib first (e.g., @astermesh/pglite/contrib/pgcrypto)
+          // Try contrib first (e.g., @simthis/pglite/contrib/pgcrypto)
           try {
-            const mod = await import(`@astermesh/pglite/contrib/${name}`)
+            const mod = await import(`@simthis/pglite/contrib/${name}`)
             ext = mod[name] as Extension
           } catch {
             // External extension packages remain under their published scope.

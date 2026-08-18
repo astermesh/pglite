@@ -15,7 +15,7 @@ export default defineConfig({
     }),
   ],
   optimizeDeps: {
-    exclude: ['@astermesh/pglite'],
+    exclude: ['@simthis/pglite'],
   },
   define: { 'process.env': {} },
   build: {

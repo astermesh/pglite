@@ -1,7 +1,7 @@
 import type {
   BackendMessage,
   NoticeMessage,
-} from '@astermesh/pg-protocol/messages'
+} from '@simthis/pg-protocol/messages'
 import type { Filesystem } from './fs/base.js'
 import type { DumpTarCompressionOptions } from './fs/tarUtils.js'
 import type { Parser, Serializer } from './types.js'

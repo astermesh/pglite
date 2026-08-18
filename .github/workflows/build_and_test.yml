@@ -55,7 +55,7 @@ jobs:
           node-version: 20
           cache: pnpm
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@astermesh'
+          scope: '@simthis'
       - name: Install
         working-directory: ${{ github.workspace }}
         run: pnpm install
@@ -95,18 +95,18 @@ jobs:
       - name: Checkout release tooling
         if: >-
           github.event_name == 'pull_request' &&
-          startsWith(github.base_ref, 'astermesh/v')
+          startsWith(github.base_ref, 'simbox/v')
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: astermesh/pglite
-          ref: astermesh/ci
+          repository: simthis/pglite
+          ref: simbox/ci
           sparse-checkout: .github
-          path: .astermesh-ci
+          path: .release-toolset
 
       - name: Verify package family against the registry
         if: >-
           github.event_name == 'pull_request' &&
-          startsWith(github.base_ref, 'astermesh/v')
+          startsWith(github.base_ref, 'simbox/v')
         working-directory: ${{ github.workspace }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,9 +119,9 @@ jobs:
           TARBALL_DIRECTORY: ${{ runner.temp }}/candidate
         run: |
           mkdir -p "$TARBALL_DIRECTORY"
-          node .astermesh-ci/.github/scripts/resolve-release.mjs
-          node .astermesh-ci/.github/scripts/pack-packages.mjs
-          node .astermesh-ci/.github/scripts/classify-packages.mjs
+          node .release-toolset/.github/scripts/resolve-release.mjs
+          node .release-toolset/.github/scripts/pack-packages.mjs
+          node .release-toolset/.github/scripts/classify-packages.mjs
 
   build-and-test-pglite:
     name: Build and Test packages/pglite
@@ -176,7 +176,7 @@ jobs:
           pnpm exec playwright install --with-deps
 
       - name: Build dependencies
-        run: pnpm --filter "@astermesh/pglite^..." build
+        run: pnpm --filter "@simthis/pglite^..." build
 
       - name: Typecheck
         run: pnpm typecheck
@@ -206,7 +206,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pglite-package-node-v${{ matrix.node }}
-          path: ./packages/pglite/astermesh-pglite-*.tgz
+          path: ./packages/pglite/simthis-pglite-*.tgz
           retention-days: 60
 
       - name: Find Comment
@@ -261,16 +261,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build pg-protocol
-        run: pnpm --filter "@astermesh/pg-protocol" build
+        run: pnpm --filter "@simthis/pg-protocol" build
 
       - name: Build packages
-        run: pnpm --filter="...^@astermesh/pglite" build
+        run: pnpm --filter="...^@simthis/pglite" build
 
       - name: Typecheck packages
-        run: pnpm --filter="...^@astermesh/pglite" typecheck
+        run: pnpm --filter="...^@simthis/pglite" typecheck
 
       - name: Test packages
-        run: pnpm --filter="...^@astermesh/pglite" test
+        run: pnpm --filter="...^@simthis/pglite" test
 
       - name: Upload pglite-tools distribution artifact
         id: upload-pglite-tools-dist
@@ -316,7 +316,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build REPL and benchmark packages needed for examples
-        run: pnpm --filter "@astermesh/pglite-react" --filter "@astermesh/pglite-repl" --filter "benchmark"  build
+        run: pnpm --filter "@simthis/pglite-react" --filter "@simthis/pglite-repl" --filter "benchmark"  build
 
       - name: Download PGlite web build artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

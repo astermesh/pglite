@@ -4,7 +4,7 @@ import {
   DataRowMessage,
   CommandCompleteMessage,
   ParameterDescriptionMessage,
-} from '@astermesh/pg-protocol/messages'
+} from '@simthis/pg-protocol/messages'
 import type { Results, QueryOptions } from './interface.js'
 import { parseType, type Parser } from './types.js'
 

@@ -1,5 +1,5 @@
 {
-  "name": "@astermesh/pglite-repl",
+  "name": "@simthis/pglite-repl",
   "version": "0.2.35",
   "author": "Electric DB Limited",
   "homepage": "https://pglite.dev",
@@ -7,7 +7,7 @@
   "private": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/astermesh/pglite.git",
+    "url": "git+https://github.com/simthis/pglite.git",
     "directory": "packages/pglite-repl"
   },
   "publishConfig": {
@@ -55,7 +55,7 @@
     "@codemirror/lang-sql": "^6.8.0",
     "@codemirror/language": "^6.10.3",
     "@codemirror/view": "^6.34.1",
-    "@astermesh/pglite-react": "workspace:*",
+    "@simthis/pglite-react": "workspace:*",
     "@uiw/codemirror-theme-github": "4.23.5",
     "@uiw/codemirror-theme-xcode": "4.23.5",
     "@uiw/codemirror-themes": "4.23.5",
@@ -65,16 +65,16 @@
     "react-dom": "^19.0.0"
   },
   "peerDependencies": {
-    "@astermesh/pglite": "workspace:^"
+    "@simthis/pglite": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@astermesh/pglite": {
+    "@simthis/pglite": {
       "optional": true
     }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
-    "@astermesh/pglite": "workspace:*",
+    "@simthis/pglite": "workspace:*",
     "@types/node": "^20.16.11",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

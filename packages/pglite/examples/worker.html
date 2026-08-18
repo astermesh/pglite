@@ -7,8 +7,8 @@
     <script type="importmap">
       {
         "imports": {
-          "@astermesh/pglite/worker": "../dist/worker/index.js",
-          "@astermesh/pglite/live": "../dist/live/index.js"
+          "@simthis/pglite/worker": "../dist/worker/index.js",
+          "@simthis/pglite/live": "../dist/live/index.js"
         }
       }
     </script>
@@ -43,8 +43,8 @@
         <div class="script" rel="./worker-process.js"></div>
         <h2>Main Thread</h2>
         <script type="module">
-          import { PGliteWorker } from '@astermesh/pglite/worker'
-          import { live } from '@astermesh/pglite/live'
+          import { PGliteWorker } from '@simthis/pglite/worker'
+          import { live } from '@simthis/pglite/live'
 
           console.log('Creating worker...')
           const pg = new PGliteWorker(

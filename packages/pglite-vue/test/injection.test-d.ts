@@ -2,10 +2,10 @@
  * @vitest-environment node
  */
 import { describe, it, expectTypeOf } from 'vitest'
-import { PGlite, PGliteInterfaceExtensions } from '@astermesh/pglite'
-import { live } from '@astermesh/pglite/live'
+import { PGlite, PGliteInterfaceExtensions } from '@simthis/pglite'
+import { live } from '@simthis/pglite/live'
 import { makePGliteDependencyInjector } from '../src'
-import { vector } from '@astermesh/pglite/vector'
+import { vector } from '@simthis/pglite/vector'
 
 describe('dependency injection', () => {
   it('typechecks instance being provided and injected', async () => {

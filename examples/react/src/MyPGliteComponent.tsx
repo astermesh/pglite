@@ -1,4 +1,4 @@
-import { usePGlite } from '@astermesh/pglite-react'
+import { usePGlite } from '@simthis/pglite-react'
 import MyPGliteItemsComponent from './MyPGliteItemsComponent'
 
 const names = [

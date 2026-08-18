@@ -5,7 +5,7 @@ This package implements React hooks for [PGLite](https://pglite.dev/) on top of 
 To install:
 
 ```sh
-npm install @astermesh/pglite-react
+npm install @simthis/pglite-react
 ```
 
 The hooks this package provides are:

@@ -1,5 +1,5 @@
 {
-  "name": "@astermesh/pg-protocol",
+  "name": "@simthis/pg-protocol",
   "version": "0.0.4",
   "description": "The postgres client/server binary protocol, implemented in TypeScript",
   "type": "module",
@@ -15,7 +15,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/astermesh/pglite.git",
+    "url": "git+https://github.com/simthis/pglite.git",
     "directory": "packages/pg-protocol"
   },
   "scripts": {

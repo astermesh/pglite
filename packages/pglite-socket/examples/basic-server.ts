@@ -1,5 +1,5 @@
 import { PGLiteSocketServer } from '../src'
-import { PGlite, DebugLevel } from '@astermesh/pglite'
+import { PGlite, DebugLevel } from '@simthis/pglite'
 
 /*
  * This is a basic example of how to use the PGLiteSocketServer class.

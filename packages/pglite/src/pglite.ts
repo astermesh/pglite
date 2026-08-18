@@ -28,14 +28,14 @@ import {
 } from './utils.js'
 
 // Importing the source as the built version is not ESM compatible
-import { Parser as ProtocolParser, serialize } from '@astermesh/pg-protocol'
+import { Parser as ProtocolParser, serialize } from '@simthis/pg-protocol'
 import {
   BackendMessage,
   CommandCompleteMessage,
   DatabaseError,
   NoticeMessage,
   NotificationResponseMessage,
-} from '@astermesh/pg-protocol/messages'
+} from '@simthis/pg-protocol/messages'
 
 export class PGlite
   extends BasePGlite

@@ -1,7 +1,7 @@
 import { vi, describe, it, expect, beforeEach, beforeAll } from 'vitest'
 import { ref } from 'vue-demi'
-import { PGlite } from '@astermesh/pglite'
-import { live, PGliteWithLive } from '@astermesh/pglite/live'
+import { PGlite } from '@simthis/pglite'
+import { live, PGliteWithLive } from '@simthis/pglite/live'
 import { type useLiveIncrementalQuery, type useLiveQuery } from '../src'
 
 function flushPromises(timeoutMs = 0): Promise<void> {

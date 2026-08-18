@@ -6,7 +6,7 @@ PGlite versions 0.2.x were based on PostgreSQL version 16.x, while PGlite versio
 
 The upgrade path is to use [pg_dump](pglite-tools.md) to create a
 database dump from the previous version of PGlite and then import into a new
-instance based on 17.4. The `0.2.x` releases predate the AsterMesh fork, so the
+instance based on 17.4. The `0.2.x` releases predate this fork, so the
 old package in the commands below intentionally remains in the upstream
 `@electric-sql` scope.
 

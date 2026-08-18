@@ -1,4 +1,4 @@
-import { useLiveQuery } from '@astermesh/pglite-react'
+import { useLiveQuery } from '@simthis/pglite-react'
 
 function MyPGliteItemsComponent() {
   const maxNumber = 1000

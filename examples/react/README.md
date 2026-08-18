@@ -110,10 +110,10 @@ $ pnpm run dev
   ➜  press h + enter to show help
 ```
 
-4. Install the `@astermesh/pglite` and `@astermesh/pglite-react` packages:
+4. Install the `@simthis/pglite` and `@simthis/pglite-react` packages:
 
 ```
-$ pnpm install @astermesh/pglite @astermesh/pglite-react
+$ pnpm install @simthis/pglite @simthis/pglite-react
 ```
 
 5. You are ready start using PGlite's React API.

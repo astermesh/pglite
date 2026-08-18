@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react'
-import { PGliteWithLive } from '@astermesh/pglite/live'
+import { PGliteWithLive } from '@simthis/pglite/live'
 
 interface Props<T extends PGliteWithLive> {
   children?: React.ReactNode
