@@ -1,8 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/astermesh/pglite/attestations/fork-lineage/v1",
-  "title": "AsterMesh PGlite package fork lineage",
-  "description": "Identifies the upstream and AsterMesh wrapper and engine revisions, plus the native build toolchain, used to produce an AsterMesh PGlite-family package.",
+  "title": "PGlite package fork lineage",
+  "description": "Identifies the upstream and fork wrapper and engine revisions, plus the native build toolchain, used to produce a package of this PGlite fork family.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,11 +14,11 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "const": 2
     },
     "releaseLine": {
       "type": "string",
-      "pattern": "^astermesh/v[0-9]+\\.[0-9]+$"
+      "pattern": "^[a-z][a-z0-9-]*/v[0-9]+\\.[0-9]+(?:-[a-z0-9][a-z0-9-]*)?$"
     },
     "package": {
       "type": "object",
@@ -28,7 +27,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "pattern": "^@astermesh/pglite(?:-[a-z0-9-]+)?$"
+          "pattern": "^@[a-z0-9][a-z0-9-]*/pglite(?:-[a-z0-9-]+)?$"
         },
         "version": {
           "$ref": "#/$defs/version"
@@ -42,7 +41,7 @@
     "wrapper": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["upstream", "astermesh"],
+      "required": ["upstream", "fork"],
       "properties": {
         "upstream": {
           "type": "object",
@@ -64,21 +63,21 @@
             }
           }
         },
-        "astermesh": {
-          "$ref": "#/$defs/astermeshWrapper"
+        "fork": {
+          "$ref": "#/$defs/forkWrapper"
         }
       }
     },
     "engine": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["upstream", "astermesh"],
+      "required": ["upstream", "fork"],
       "properties": {
         "upstream": {
           "$ref": "#/$defs/upstreamEngine"
         },
-        "astermesh": {
-          "$ref": "#/$defs/astermeshEngine"
+        "fork": {
+          "$ref": "#/$defs/forkEngine"
         }
       }
     },
@@ -122,13 +121,14 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
-    "astermeshWrapper": {
+    "forkWrapper": {
       "type": "object",
       "additionalProperties": false,
       "required": ["repository", "commit"],
       "properties": {
         "repository": {
-          "const": "https://github.com/astermesh/pglite"
+          "type": "string",
+          "pattern": "^https://[^\\s/]+/[^\\s/]+/pglite$"
         },
         "commit": {
           "$ref": "#/$defs/commit"
@@ -148,13 +148,14 @@
         }
       }
     },
-    "astermeshEngine": {
+    "forkEngine": {
       "type": "object",
       "additionalProperties": false,
       "required": ["repository", "commit"],
       "properties": {
         "repository": {
-          "const": "https://github.com/astermesh/postgres-pglite"
+          "type": "string",
+          "pattern": "^https://[^\\s/]+/[^\\s/]+/postgres-pglite$"
         },
         "commit": {
           "$ref": "#/$defs/commit"

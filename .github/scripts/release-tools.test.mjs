@@ -30,25 +30,35 @@ import {
   readDistTags,
   validateFinalDistTags,
 } from "./dist-tags.mjs";
-import { validateReleaseConfig } from "./release-config.mjs";
+import {
+  loadReleaseConfig,
+  parseReleaseLine,
+  releaseConfigPath,
+  releaseLineDistTag,
+  validateReleaseConfig,
+} from "./release-config.mjs";
 import { validateReleaseSource } from "./release-source.mjs";
+import {
+  resolveSubmoduleRepository,
+  runContextRepository,
+} from "./repository-identity.mjs";
 import { planPackageTag, remoteTagCommit } from "./remote-tag.mjs";
 
 const validConfig = {
   schemaVersion: 1,
-  releaseLine: "astermesh/v0.3",
+  releaseLine: "simbox/v0.3",
   distTag: "line-0-3",
   upstreamWrapperCommit: "4555814e2b0beac8af5d5d760907040b7b8f61df",
   packages: [
     {
       directory: "packages/pglite",
-      name: "@astermesh/pglite",
+      name: "@simthat/pglite",
       upstreamName: "@electric-sql/pglite",
       postgresLicense: true,
     },
     {
       directory: "packages/pglite-react",
-      name: "@astermesh/pglite-react",
+      name: "@simthat/pglite-react",
       upstreamName: "@electric-sql/pglite-react",
     },
   ],
@@ -240,20 +250,24 @@ test("release-tooling CI verifies the live package query read-only", () => {
     /permissions:\n  contents: read\n  packages: read\n/,
   );
   assert.match(workflow, /registry-url: "https:\/\/npm\.pkg\.github\.com"/);
-  assert.match(workflow, /scope: "@astermesh"/);
+  assert.match(workflow, /scope: "@\$\{\{ github\.repository_owner \}\}"/);
   assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
+  assert.match(workflow, /PUBLISHED_PACKAGE: "@[a-z0-9][a-z0-9-]*\/pglite"/);
   assert.match(
     workflow,
-    /npm view '@astermesh\/pglite@>=0\.0\.0' version --json --registry=https:\/\/npm\.pkg\.github\.com/,
+    /npm view "\$PUBLISHED_PACKAGE@>=0\.0\.0" version --json --registry=https:\/\/npm\.pkg\.github\.com/,
   );
-  assert.match(workflow, /parsePublishedVersions\(process\.argv\[1\]/);
+  assert.match(
+    workflow,
+    /parsePublishedVersions\(process\.argv\[1\], process\.argv\[2\]\)/,
+  );
   assert.doesNotMatch(workflow, /packages: write/);
 });
 
 test("release source overrides are verification-only line descendants", () => {
   const base = {
     sourceCommit: "a".repeat(40),
-    releaseLine: "astermesh/v0.3",
+    releaseLine: "simbox/v0.3",
   };
 
   assert.equal(
@@ -325,6 +339,8 @@ test("release source overrides are verification-only line descendants", () => {
 test("release config owns and validates the complete package list", () => {
   assert.deepEqual(validateReleaseConfig(validConfig), {
     ...validConfig,
+    scope: "simthat",
+    rootPackage: "@simthat/pglite",
     packages: [
       validConfig.packages[0],
       { ...validConfig.packages[1], postgresLicense: false },
@@ -456,43 +472,43 @@ test("registry versions use a stable range and fail closed", () => {
       calls.push(args);
       return '["0.3.16","0.3.17"]\n';
     },
-    "@astermesh/pglite",
+    "@simthat/pglite",
   );
 
   assert.deepEqual(calls, [
     [
       "view",
-      "@astermesh/pglite@>=0.0.0",
+      "@simthat/pglite@>=0.0.0",
       "version",
       "--json",
     ],
   ]);
   assert.deepEqual(versions, ["0.3.16", "0.3.17"]);
   assert.deepEqual(
-    parsePublishedVersions('"0.3.17"\n', "@astermesh/pglite"),
+    parsePublishedVersions('"0.3.17"\n', "@simthat/pglite"),
     ["0.3.17"],
   );
   assert.deepEqual(
-    readPublishedVersions(() => undefined, "@astermesh/pglite"),
+    readPublishedVersions(() => undefined, "@simthat/pglite"),
     [],
   );
   assert.throws(
-    () => parsePublishedVersions("", "@astermesh/pglite"),
+    () => parsePublishedVersions("", "@simthat/pglite"),
     /empty published versions response/,
   );
   assert.throws(
-    () => parsePublishedVersions("{", "@astermesh/pglite"),
+    () => parsePublishedVersions("{", "@simthat/pglite"),
     /invalid published versions response/,
   );
   assert.throws(
-    () => parsePublishedVersions('{"version":"0.3.17"}', "@astermesh/pglite"),
+    () => parsePublishedVersions('{"version":"0.3.17"}', "@simthat/pglite"),
     /invalid published version/,
   );
   assert.throws(
     () =>
       parsePublishedVersions(
         '["0.3.17","0.3.17"]',
-        "@astermesh/pglite",
+        "@simthat/pglite",
       ),
     /duplicate published version/,
   );
@@ -500,7 +516,7 @@ test("registry versions use a stable range and fail closed", () => {
 
 test("registry classification rejects reused and regressed versions", () => {
   const pkg = {
-    name: "@astermesh/pglite",
+    name: "@simthat/pglite",
     version: "0.3.17",
     fingerprint: "sha256:local",
   };
@@ -524,9 +540,9 @@ test("registry dist-tags use the documented listing command and format", () => {
         "",
       ].join("\n");
     },
-    "@astermesh/pglite",
+    "@simthat/pglite",
   );
-  assert.deepEqual(calls, [["dist-tag", "ls", "@astermesh/pglite"]]);
+  assert.deepEqual(calls, [["dist-tag", "ls", "@simthat/pglite"]]);
   assert.deepEqual(
     tags,
     new Map([
@@ -541,7 +557,7 @@ test("registry dist-tags use the documented listing command and format", () => {
         "staging-30300319510: 0.3.17",
         "",
       ].join("\n"),
-      "@astermesh/pglite",
+      "@simthat/pglite",
     ),
     new Map([
       ["line-0-3", "0.3.17"],
@@ -549,18 +565,18 @@ test("registry dist-tags use the documented listing command and format", () => {
     ]),
   );
   assert.deepEqual(
-    parseDistTagListing("", "@astermesh/pglite"),
+    parseDistTagListing("", "@simthat/pglite"),
     new Map(),
   );
   assert.throws(
-    () => parseDistTagListing("not a tag record", "@astermesh/pglite"),
+    () => parseDistTagListing("not a tag record", "@simthat/pglite"),
     /invalid dist-tag record/,
   );
   assert.throws(
     () =>
       parseDistTagListing(
         "line-0-3: 0.3.17\nline-0-3: 0.3.18\n",
-        "@astermesh/pglite",
+        "@simthat/pglite",
       ),
     /duplicate dist-tag/,
   );
@@ -574,11 +590,11 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
   };
   const partiallyFinalized = parseDistTagListing(
     "line-0-3: 0.3.17\nstaging-30300319510: 0.3.17\n",
-    "@astermesh/pglite",
+    "@simthat/pglite",
   );
   const stagedOnly = parseDistTagListing(
     "staging-30300319510: 0.3.17\n",
-    "@astermesh/pglite-react",
+    "@simthat/pglite-react",
   );
 
   assert.deepEqual(
@@ -608,7 +624,7 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
   assert.doesNotThrow(() =>
     validateFinalDistTags({
       ...common,
-      packageName: "@astermesh/pglite",
+      packageName: "@simthat/pglite",
       tags: finalized,
     }),
   );
@@ -616,7 +632,7 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
     () =>
       validateFinalDistTags({
         ...common,
-        packageName: "@astermesh/pglite",
+        packageName: "@simthat/pglite",
         tags: partiallyFinalized,
       }),
     /still has staging dist-tags/,
@@ -625,20 +641,20 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
 
 test("package-family tag finalization is ordered and idempotent", () => {
   const packages = [
-    { name: "@astermesh/pglite", version: "0.3.17" },
-    { name: "@astermesh/pglite-react", version: "0.2.34" },
-    { name: "@astermesh/pglite-vue", version: "0.2.34" },
+    { name: "@simthat/pglite", version: "0.3.17" },
+    { name: "@simthat/pglite-react", version: "0.2.34" },
+    { name: "@simthat/pglite-vue", version: "0.2.34" },
   ];
   const registry = fakeDistTagRegistry({
-    "@astermesh/pglite": {
+    "@simthat/pglite": {
       "line-0-3": "0.3.17",
       "staging-30300319510": "0.3.17",
       "staging-future": "0.3.18",
     },
-    "@astermesh/pglite-react": {
+    "@simthat/pglite-react": {
       "staging-30300319510": "0.2.34",
     },
-    "@astermesh/pglite-vue": {},
+    "@simthat/pglite-vue": {},
   });
   const finalize = () =>
     finalizeDistTags({
@@ -655,41 +671,41 @@ test("package-family tag finalization is ordered and idempotent", () => {
     [
       "dist-tag",
       "add",
-      "@astermesh/pglite-react@0.2.34",
+      "@simthat/pglite-react@0.2.34",
       "line-0-3",
     ],
     [
       "dist-tag",
       "add",
-      "@astermesh/pglite-vue@0.2.34",
+      "@simthat/pglite-vue@0.2.34",
       "line-0-3",
     ],
     [
       "dist-tag",
       "rm",
-      "@astermesh/pglite",
+      "@simthat/pglite",
       "staging-30300319510",
     ],
     [
       "dist-tag",
       "rm",
-      "@astermesh/pglite-react",
+      "@simthat/pglite-react",
       "staging-30300319510",
     ],
   ]);
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite")),
+    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite")),
     {
       "line-0-3": "0.3.17",
       "staging-future": "0.3.18",
     },
   );
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite-react")),
+    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite-react")),
     { "line-0-3": "0.2.34" },
   );
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite-vue")),
+    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite-vue")),
     { "line-0-3": "0.2.34" },
   );
 
@@ -702,7 +718,7 @@ test("package-family tag finalization is ordered and idempotent", () => {
 
 test("package-family tag finalization can promote latest", () => {
   const registry = fakeDistTagRegistry({
-    "@astermesh/pglite": {
+    "@simthat/pglite": {
       latest: "0.3.16",
       "line-0-3": "0.3.17",
       "staging-30300319510": "0.3.17",
@@ -710,14 +726,14 @@ test("package-family tag finalization can promote latest", () => {
   });
 
   finalizeDistTags({
-    packages: [{ name: "@astermesh/pglite", version: "0.3.17" }],
+    packages: [{ name: "@simthat/pglite", version: "0.3.17" }],
     distTag: "line-0-3",
     promoteLatest: true,
     runNpm: registry.runNpm,
   });
 
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@astermesh/pglite")),
+    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite")),
     {
       latest: "0.3.17",
       "line-0-3": "0.3.17",
@@ -733,7 +749,7 @@ test("package-family tag finalization validates all listings before writes", () 
       mutations.push(args);
       return "";
     }
-    if (packageName === "@astermesh/pglite") {
+    if (packageName === "@simthat/pglite") {
       return "staging-30300319510: 0.3.17\n";
     }
     return "not a dist-tag record\n";
@@ -743,14 +759,14 @@ test("package-family tag finalization validates all listings before writes", () 
     () =>
       finalizeDistTags({
         packages: [
-          { name: "@astermesh/pglite", version: "0.3.17" },
-          { name: "@astermesh/pglite-react", version: "0.2.34" },
+          { name: "@simthat/pglite", version: "0.3.17" },
+          { name: "@simthat/pglite-react", version: "0.2.34" },
         ],
         distTag: "line-0-3",
         promoteLatest: false,
         runNpm,
       }),
-    /invalid dist-tag record for @astermesh\/pglite-react/,
+    /invalid dist-tag record for @simthat\/pglite-react/,
   );
   assert.deepEqual(mutations, []);
 });
@@ -769,7 +785,7 @@ test("package-family tag finalization enforces registry postconditions", () => {
   assert.throws(
     () =>
       finalizeDistTags({
-        packages: [{ name: "@astermesh/pglite", version: "0.3.17" }],
+        packages: [{ name: "@simthat/pglite", version: "0.3.17" }],
         distTag: "line-0-3",
         promoteLatest: false,
         runNpm,
@@ -777,18 +793,18 @@ test("package-family tag finalization enforces registry postconditions", () => {
     /dist-tag line-0-3 does not point to 0.3.17/,
   );
   assert.deepEqual(mutations, [
-    ["dist-tag", "add", "@astermesh/pglite@0.3.17", "line-0-3"],
+    ["dist-tag", "add", "@simthat/pglite@0.3.17", "line-0-3"],
     [
       "dist-tag",
       "rm",
-      "@astermesh/pglite",
+      "@simthat/pglite",
       "staging-30300319510",
     ],
   ]);
 });
 
 test("remote package tags resolve to their commit targets", () => {
-  const tag = "@astermesh/pglite@0.3.17";
+  const tag = "@simthat/pglite@0.3.17";
   const tagObject = "a".repeat(40);
   const commit = "b".repeat(40);
 
@@ -815,13 +831,13 @@ test("existing package tags retain their original matching release commit", () =
   const originalCommit = "a".repeat(40);
   assert.deepEqual(
     planPackageTag({
-      tag: "@astermesh/pglite@0.3.17",
+      tag: "@simthat/pglite@0.3.17",
       remoteCommit: originalCommit,
       currentCommit: "b".repeat(40),
-      packageName: "@astermesh/pglite",
+      packageName: "@simthat/pglite",
       packageVersion: "0.3.17",
       manifest: {
-        name: "@astermesh/pglite",
+        name: "@simthat/pglite",
         version: "0.3.17",
       },
     }),
@@ -833,10 +849,10 @@ test("missing package tags are created for the current release", () => {
   const currentCommit = "b".repeat(40);
   assert.deepEqual(
     planPackageTag({
-      tag: "@astermesh/pglite-socket@0.0.23",
+      tag: "@simthat/pglite-socket@0.0.23",
       remoteCommit: undefined,
       currentCommit,
-      packageName: "@astermesh/pglite-socket",
+      packageName: "@simthat/pglite-socket",
       packageVersion: "0.0.23",
       manifest: undefined,
     }),
@@ -846,10 +862,10 @@ test("missing package tags are created for the current release", () => {
 
 test("existing package tag targets must declare the tagged identity", () => {
   const common = {
-    tag: "@astermesh/pglite@0.3.17",
+    tag: "@simthat/pglite@0.3.17",
     remoteCommit: "a".repeat(40),
     currentCommit: "b".repeat(40),
-    packageName: "@astermesh/pglite",
+    packageName: "@simthat/pglite",
     packageVersion: "0.3.17",
   };
 
@@ -858,26 +874,26 @@ test("existing package tag targets must declare the tagged identity", () => {
       planPackageTag({
         ...common,
         manifest: {
-          name: "@astermesh/pglite",
+          name: "@simthat/pglite",
           version: "0.3.16",
         },
       }),
-    /does not declare @astermesh\/pglite@0\.3\.17/,
+    /does not declare @simthat\/pglite@0\.3\.17/,
   );
   assert.throws(
     () =>
       planPackageTag({
         ...common,
         manifest: {
-          name: "@astermesh/pglite-react",
+          name: "@simthat/pglite-react",
           version: "0.3.17",
         },
       }),
-    /does not declare @astermesh\/pglite@0\.3\.17/,
+    /does not declare @simthat\/pglite@0\.3\.17/,
   );
   assert.throws(
     () => planPackageTag({ ...common, manifest: undefined }),
-    /does not declare @astermesh\/pglite@0\.3\.17/,
+    /does not declare @simthat\/pglite@0\.3\.17/,
   );
 });
 
@@ -899,21 +915,21 @@ test("automatic publication reacts only to package version changes", () => {
   const current = new Map([
     [
       "packages/pglite/package.json",
-      { name: "@astermesh/pglite", version: "0.3.17", description: "new" },
+      { name: "@simthat/pglite", version: "0.3.17", description: "new" },
     ],
     [
       "packages/pglite-react/package.json",
-      { name: "@astermesh/pglite-react", version: "0.2.34" },
+      { name: "@simthat/pglite-react", version: "0.2.34" },
     ],
   ]);
   const unchangedVersions = new Map([
     [
       "packages/pglite/package.json",
-      { name: "@astermesh/pglite", version: "0.3.17", description: "old" },
+      { name: "@simthat/pglite", version: "0.3.17", description: "old" },
     ],
     [
       "packages/pglite-react/package.json",
-      { name: "@astermesh/pglite-react", version: "0.2.34" },
+      { name: "@simthat/pglite-react", version: "0.2.34" },
     ],
   ]);
   assert.deepEqual(
@@ -934,10 +950,212 @@ test("automatic publication reacts only to package version changes", () => {
     ),
     [
       {
-        name: "@astermesh/pglite",
+        name: "@simthat/pglite",
         before: "0.3.16",
         after: "0.3.17",
       },
     ],
   );
+});
+
+test("release lines name a platform, a version, and an optional variant", () => {
+  assert.deepEqual(parseReleaseLine("simbox/v0.3"), {
+    platform: "simbox",
+    major: 0,
+    minor: 3,
+    variant: undefined,
+  });
+  assert.deepEqual(parseReleaseLine("simbox/v0.3-postgis"), {
+    platform: "simbox",
+    major: 0,
+    minor: 3,
+    variant: "postgis",
+  });
+  assert.equal(releaseLineDistTag(parseReleaseLine("simbox/v0.5")), "line-0-5");
+  assert.equal(
+    releaseLineDistTag(parseReleaseLine("simbox/v0.3-postgis")),
+    "line-0-3-postgis",
+  );
+  assert.equal(
+    validateReleaseConfig({
+      ...validConfig,
+      releaseLine: "simbox/v0.3-postgis",
+      distTag: "line-0-3-postgis",
+    }).distTag,
+    "line-0-3-postgis",
+  );
+
+  for (const line of [
+    "v0.3",
+    "simbox/0.3",
+    "SimBox/v0.3",
+    "simbox/v0",
+    "simbox/v0.3-",
+    "simbox/v0.3-PostGIS",
+  ]) {
+    assert.throws(() => parseReleaseLine(line), /invalid release line/);
+  }
+});
+
+test("the package scope follows the manifest, not the tooling", () => {
+  const elsewhere = {
+    ...validConfig,
+    packages: validConfig.packages.map((entry) => ({
+      ...entry,
+      name: entry.name.replace("@simthat/", "@example/"),
+    })),
+  };
+  const resolved = validateReleaseConfig(elsewhere);
+  assert.equal(resolved.scope, "example");
+  assert.equal(resolved.rootPackage, "@example/pglite");
+
+  assert.throws(
+    () =>
+      validateReleaseConfig({
+        ...validConfig,
+        packages: [
+          validConfig.packages[0],
+          { ...validConfig.packages[1], name: "@example/pglite-react" },
+        ],
+      }),
+    /mixes package scopes/,
+  );
+  assert.throws(
+    () =>
+      validateReleaseConfig({
+        ...validConfig,
+        packages: [
+          { ...validConfig.packages[0], name: "@simthat/pglite-tools" },
+        ],
+      }),
+    /must include @simthat\/pglite/,
+  );
+});
+
+test("fork repositories resolve from the run context and the submodule link", () => {
+  assert.equal(
+    runContextRepository({
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_REPOSITORY: "simthat/pglite",
+    }),
+    "https://github.com/simthat/pglite",
+  );
+  assert.throws(
+    () => runContextRepository({ GITHUB_SERVER_URL: "https://github.com" }),
+    /invalid GITHUB_REPOSITORY/,
+  );
+  assert.throws(
+    () =>
+      runContextRepository({
+        GITHUB_SERVER_URL: "github.com",
+        GITHUB_REPOSITORY: "simthat/pglite",
+      }),
+    /invalid GITHUB_SERVER_URL/,
+  );
+
+  assert.equal(
+    resolveSubmoduleRepository(
+      "https://github.com/simthat/pglite",
+      "../postgres-pglite.git",
+    ),
+    "https://github.com/simthat/postgres-pglite",
+  );
+  assert.equal(
+    resolveSubmoduleRepository(
+      "https://example.test/elsewhere/pglite",
+      "../postgres-pglite.git",
+    ),
+    "https://example.test/elsewhere/postgres-pglite",
+  );
+  assert.equal(
+    resolveSubmoduleRepository(
+      "https://github.com/simthat/pglite",
+      "https://github.com/another/postgres-pglite.git",
+    ),
+    "https://github.com/another/postgres-pglite",
+  );
+  assert.throws(
+    () =>
+      resolveSubmoduleRepository(
+        "https://github.com/simthat/pglite",
+        "git@github.com:simthat/postgres-pglite.git",
+      ),
+    /unsupported submodule url/,
+  );
+});
+
+test("the release workflow reads its identity from the run context", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+  const schema = JSON.parse(
+    readFileSync(
+      new URL("../attestations/fork-lineage-v2.schema.json", import.meta.url),
+      "utf8",
+    ),
+  );
+
+  assert.match(
+    workflow,
+    /predicate-type: \$\{\{ github\.server_url \}\}\/\$\{\{ github\.repository \}\}\/attestations\/fork-lineage\/v2/,
+  );
+  assert.match(
+    workflow,
+    /SIGNER_WORKFLOW: \$\{\{ job\.workflow_repository \}\}\/\.github\/workflows\/build\.yml/,
+  );
+  assert.match(workflow, /scope: "@\$\{\{ github\.repository_owner \}\}"/);
+  assert.doesNotMatch(workflow, /--signer-workflow [a-z]/);
+  assert.equal(
+    /astermesh/i.test(workflow),
+    false,
+    "the release workflow must name no owner",
+  );
+
+  assert.equal(schema.properties.schemaVersion.const, 2);
+  assert.equal(schema.$id, undefined);
+  assert.deepEqual(schema.properties.wrapper.required, ["upstream", "fork"]);
+  assert.deepEqual(schema.properties.engine.required, ["upstream", "fork"]);
+  assert.equal(schema.$defs.forkWrapper.properties.repository.const, undefined);
+  assert.equal(schema.$defs.forkEngine.properties.repository.const, undefined);
+  assert.equal(
+    /astermesh/i.test(JSON.stringify(schema)),
+    false,
+    "the lineage schema must name no owner",
+  );
+});
+
+test("the tooling gate runs on both the old and the new branch name", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/test-release-tooling.yml", import.meta.url),
+    "utf8",
+  );
+
+  for (const branch of ["astermesh/ci", "simbox/ci"]) {
+    assert.equal(
+      workflow.split(`      - ${branch}\n`).length - 1,
+      2,
+      `${branch} must be filtered on for both pull_request and push`,
+    );
+  }
+});
+
+test("the line manifest is read from its declared path", () => {
+  assert.equal(releaseConfigPath, ".release/line.json");
+
+  const workspace = mkdtempSync(resolve(tmpdir(), "release-line-"));
+  try {
+    assert.throws(() => loadReleaseConfig(workspace), /ENOENT/);
+    mkdirSync(resolve(workspace, ".release"));
+    writeFileSync(
+      resolve(workspace, releaseConfigPath),
+      `${JSON.stringify(validConfig, null, 2)}\n`,
+    );
+    assert.equal(
+      loadReleaseConfig(workspace).releaseLine,
+      validConfig.releaseLine,
+    );
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
 });

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "release line to verify or publish (astermesh/vX.Y)"
+        description: "release line to verify or publish (simbox/vX.Y)"
         required: true
         type: string
       source_ref:
@@ -84,11 +84,11 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
-          path: .astermesh-ci
+          path: .release-toolset
       - name: Resolve and validate release
         env:
           RELEASE_CONTEXT: ${{ runner.temp }}/release-context.json
-        run: node .astermesh-ci/.github/scripts/resolve-release.mjs
+        run: node .release-toolset/.github/scripts/resolve-release.mjs
       - name: Upload release identity
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -118,7 +118,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
-          path: .astermesh-ci
+          path: .release-toolset
       - name: Download release identity
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -129,11 +129,11 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@astermesh"
+          scope: "@${{ github.repository_owner }}"
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Verify package licensing
-        run: node .astermesh-ci/.github/scripts/verify-licenses.mjs
+        run: node .release-toolset/.github/scripts/verify-licenses.mjs
       - name: Check workspace package style
         run: pnpm -r --filter './packages/**' --if-present stylecheck
       - name: Build engine
@@ -143,7 +143,7 @@ jobs:
       - name: Record native builder identity
         env:
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
-        run: node .astermesh-ci/.github/scripts/record-builder-digest.mjs
+        run: node .release-toolset/.github/scripts/record-builder-digest.mjs
       - name: Build all workspace packages
         run: pnpm ts:build
       - name: Typecheck workspace packages
@@ -157,7 +157,7 @@ jobs:
           PACKED_PACKAGES: ${{ runner.temp }}/release/packed-packages.json
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
           TARBALL_DIRECTORY: ${{ runner.temp }}/release
-        run: node .astermesh-ci/.github/scripts/pack-packages.mjs
+        run: node .release-toolset/.github/scripts/pack-packages.mjs
       - name: Upload package family
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -174,7 +174,7 @@ jobs:
           PACKED_PACKAGES: ${{ runner.temp }}/release/packed-packages.json
           PUBLISH_PACKAGES: ${{ runner.temp }}/release/publish-packages.json
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
-        run: node .astermesh-ci/.github/scripts/classify-packages.mjs
+        run: node .release-toolset/.github/scripts/classify-packages.mjs
       - name: Upload engine artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -210,7 +210,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
-          path: .astermesh-ci
+          path: .release-toolset
       - name: Download package family
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -220,7 +220,7 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@astermesh"
+          scope: "@${{ github.repository_owner }}"
       - name: Write fork lineage predicate
         id: lineage
         env:
@@ -228,7 +228,7 @@ jobs:
           PACKAGE_NAME: ${{ matrix.name }}
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
         run: |
-          node .astermesh-ci/.github/scripts/write-lineage.mjs
+          node .release-toolset/.github/scripts/write-lineage.mjs
           echo "predicate=$LINEAGE_PATH" >> "$GITHUB_OUTPUT"
       - name: Validate fork lineage predicate
         env:
@@ -238,7 +238,7 @@ jobs:
           npx --yes ajv-cli@5.0.0 validate \
             --spec=draft2020 \
             --strict=true \
-            -s .astermesh-ci/.github/attestations/fork-lineage-v1.schema.json \
+            -s .release-toolset/.github/attestations/fork-lineage-v2.schema.json \
             -d "$LINEAGE_PATH"
       - name: Upload verified fork lineage
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -312,7 +312,7 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@astermesh"
+          scope: "@${{ github.repository_owner }}"
       - name: Attest package build provenance
         id: build-attestation
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
@@ -323,7 +323,7 @@ jobs:
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-path: ${{ runner.temp }}/release/${{ matrix.filename }}
-          predicate-type: https://github.com/astermesh/pglite/attestations/fork-lineage/v1
+          predicate-type: ${{ github.server_url }}/${{ github.repository }}/attestations/fork-lineage/v2
           predicate-path: ${{ runner.temp }}/lineage/fork-lineage.json
       - name: Verify package attestations
         env:
@@ -331,22 +331,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINEAGE_BUNDLE: ${{ steps.lineage-attestation.outputs.bundle-path }}
           LINEAGE_PATH: ${{ runner.temp }}/lineage/fork-lineage.json
+          LINEAGE_PREDICATE_TYPE: ${{ github.server_url }}/${{ github.repository }}/attestations/fork-lineage/v2
           LINEAGE_VERIFICATION: ${{ runner.temp }}/lineage-verification.json
+          SIGNER_WORKFLOW: ${{ job.workflow_repository }}/.github/workflows/build.yml
           TARBALL: ${{ runner.temp }}/release/${{ matrix.filename }}
         run: |
           gh attestation verify "$TARBALL" \
             --bundle "$BUILD_BUNDLE" \
             --deny-self-hosted-runners \
             --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow astermesh/pglite/.github/workflows/build.yml \
+            --signer-workflow "$SIGNER_WORKFLOW" \
             --predicate-type https://slsa.dev/provenance/v1
           gh attestation verify "$TARBALL" \
             --bundle "$LINEAGE_BUNDLE" \
             --deny-self-hosted-runners \
             --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow astermesh/pglite/.github/workflows/build.yml \
-            --predicate-type \
-              https://github.com/astermesh/pglite/attestations/fork-lineage/v1 \
+            --signer-workflow "$SIGNER_WORKFLOW" \
+            --predicate-type "$LINEAGE_PREDICATE_TYPE" \
             --format=json > "$LINEAGE_VERIFICATION"
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict'
@@ -405,7 +406,7 @@ jobs:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
           sparse-checkout: .github
-          path: .astermesh-ci
+          path: .release-toolset
       - name: Download package family
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -415,14 +416,14 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@astermesh"
+          scope: "@${{ github.repository_owner }}"
       - name: Finalize release tags
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROMOTE_LATEST: ${{ inputs.promote_latest }}
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
           RELEASE_SUMMARY: ${{ runner.temp }}/release/release-summary.json
-        run: node .astermesh-ci/.github/scripts/finalize-release.mjs
+        run: node .release-toolset/.github/scripts/finalize-release.mjs
       - name: Upload release summary
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:

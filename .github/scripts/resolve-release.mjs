@@ -5,10 +5,14 @@ import { resolve } from "node:path";
 import {
   commitPattern,
   loadReleaseConfig,
+  parseReleaseLine,
   parseStableVersion,
-  releaseLinePattern,
 } from "./release-config.mjs";
 import { validateReleaseSource } from "./release-source.mjs";
+import {
+  resolveSubmoduleRepository,
+  runContextRepository,
+} from "./repository-identity.mjs";
 
 const workspace = resolve(process.env.GITHUB_WORKSPACE || process.cwd());
 const releaseLine = process.env.RELEASE_LINE;
@@ -27,14 +31,13 @@ function booleanEnv(name) {
 
 const publish = booleanEnv("PUBLISH_MODE");
 const sourceOverride = booleanEnv("SOURCE_OVERRIDE");
-const lineMatch = releaseLinePattern.exec(releaseLine);
-if (!lineMatch) throw new Error(`invalid release line: ${releaseLine}`);
+const line = parseReleaseLine(releaseLine);
 if (releaseConfig.releaseLine !== releaseLine) {
   throw new Error(
     `release config belongs to ${releaseConfig.releaseLine}, not ${releaseLine}`,
   );
 }
-const lineVersion = lineMatch.slice(1).map(Number);
+const familyNamePattern = new RegExp(`^@${releaseConfig.scope}/pglite(?:-|$)`);
 
 function git(args, options = {}) {
   return execFileSync("git", args, {
@@ -125,8 +128,7 @@ const publicFamilyNames = readdirSync(resolve(workspace, "packages"), {
   .flatMap((path) => {
     if (!existsSync(resolve(workspace, path))) return [];
     const manifest = readJson(path);
-    return manifest.private === false &&
-      /^@astermesh\/pglite(?:-|$)/.test(manifest.name)
+    return manifest.private === false && familyNamePattern.test(manifest.name)
       ? [manifest.name]
       : [];
   });
@@ -169,8 +171,8 @@ const packages = releaseConfig.packages.map((definition) => {
   );
 
   if (
-    definition.name === "@astermesh/pglite" &&
-    (version[0] !== lineVersion[0] || version[1] !== lineVersion[1])
+    definition.name === releaseConfig.rootPackage &&
+    (version[0] !== line.major || version[1] !== line.minor)
   ) {
     throw new Error(
       `${manifest.name} ${manifest.version} does not belong to ${releaseLine}`,
@@ -249,6 +251,15 @@ for (;;) {
   }
 }
 
+// Owner and engine repository come from the run context and the submodule
+// link, never from hard-coded text: the fork must survive a move between
+// organizations without another tooling pass.
+const wrapperRepository = runContextRepository();
+const engineRepository = resolveSubmoduleRepository(
+  wrapperRepository,
+  git(["config", "--file", ".gitmodules", "submodule.postgres-pglite.url"]),
+);
+
 const buildConfig = readFileSync(
   resolve(workspace, "postgres-pglite/.buildconfig"),
   "utf8",
@@ -272,6 +283,7 @@ if (!postgresqlVersion || !emscriptenSdkVersion || !builderImage) {
 const context = {
   schemaVersion: 1,
   releaseLine,
+  scope: releaseConfig.scope,
   distTag: releaseConfig.distTag,
   packages,
   wrapper: {
@@ -279,8 +291,8 @@ const context = {
       repository: "https://github.com/electric-sql/pglite",
       commit: upstreamWrapperCommit,
     },
-    astermesh: {
-      repository: "https://github.com/astermesh/pglite",
+    fork: {
+      repository: wrapperRepository,
       commit: sourceCommit,
     },
   },
@@ -289,8 +301,8 @@ const context = {
       repository: "https://github.com/electric-sql/postgres-pglite",
       commit: upstreamEnginePin,
     },
-    astermesh: {
-      repository: "https://github.com/astermesh/postgres-pglite",
+    fork: {
+      repository: engineRepository,
       commit: engineCommit,
     },
   },

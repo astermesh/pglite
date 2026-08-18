@@ -7,7 +7,11 @@ permissions:
 on:
   pull_request:
     branches:
+      # Both names are listed for the length of the rename. This workflow is the
+      # branch's only required check, and a filter naming just the new ref would
+      # keep it from running on the pull request that migrates the tooling.
       - astermesh/ci
+      - simbox/ci
     paths:
       - ".github/attestations/**"
       - ".github/scripts/**"
@@ -16,6 +20,7 @@ on:
   push:
     branches:
       - astermesh/ci
+      - simbox/ci
     paths:
       - ".github/attestations/**"
       - ".github/scripts/**"
@@ -32,7 +37,7 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@astermesh"
+          scope: "@${{ github.repository_owner }}"
       - name: Check release scripts
         run: |
           for script in .github/scripts/*.mjs; do
@@ -41,11 +46,15 @@ jobs:
       - name: Check GitHub Packages version query
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This probe reads a live registry record, so it names the identity the
+          # family is published under today. It moves to the renamed scope once
+          # that scope carries a published release.
+          PUBLISHED_PACKAGE: "@astermesh/pglite"
         run: |
-          output="$(npm view '@astermesh/pglite@>=0.0.0' version --json --registry=https://npm.pkg.github.com)"
+          output="$(npm view "$PUBLISHED_PACKAGE@>=0.0.0" version --json --registry=https://npm.pkg.github.com)"
           node --input-type=module --eval '
             import { parsePublishedVersions } from "./.github/scripts/classify-packages.mjs"
-            parsePublishedVersions(process.argv[1], "@astermesh/pglite")
-          ' "$output"
+            parsePublishedVersions(process.argv[1], process.argv[2])
+          ' "$output" "$PUBLISHED_PACKAGE"
       - name: Test release scripts
         run: node --test .github/scripts/release-tools.test.mjs
