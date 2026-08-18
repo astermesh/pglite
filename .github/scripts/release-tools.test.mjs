@@ -44,6 +44,13 @@ import {
 } from "./repository-identity.mjs";
 import { planPackageTag, remoteTagCommit } from "./remote-tag.mjs";
 
+// Every organization this fork has answered to. The release machinery derives
+// the owner from the run rather than naming it, and this pattern is what holds
+// it to that: the name has already changed twice, and each change found a
+// hard-coded copy that nothing else reported. Fixtures below use `@acme` and
+// `@example` precisely because neither is a name anyone could mistake for ours.
+const ownerNamePattern = /astermesh|simthat|simthis/i;
+
 const validConfig = {
   schemaVersion: 1,
   releaseLine: "simbox/v0.3",
@@ -52,13 +59,13 @@ const validConfig = {
   packages: [
     {
       directory: "packages/pglite",
-      name: "@simthat/pglite",
+      name: "@acme/pglite",
       upstreamName: "@electric-sql/pglite",
       postgresLicense: true,
     },
     {
       directory: "packages/pglite-react",
-      name: "@simthat/pglite-react",
+      name: "@acme/pglite-react",
       upstreamName: "@electric-sql/pglite-react",
     },
   ],
@@ -369,8 +376,8 @@ test("release source overrides are verification-only line descendants", () => {
 test("release config owns and validates the complete package list", () => {
   assert.deepEqual(validateReleaseConfig(validConfig), {
     ...validConfig,
-    scope: "simthat",
-    rootPackage: "@simthat/pglite",
+    scope: "acme",
+    rootPackage: "@acme/pglite",
     packages: [
       validConfig.packages[0],
       { ...validConfig.packages[1], postgresLicense: false },
@@ -502,43 +509,43 @@ test("registry versions use a stable range and fail closed", () => {
       calls.push(args);
       return '["0.3.16","0.3.17"]\n';
     },
-    "@simthat/pglite",
+    "@acme/pglite",
   );
 
   assert.deepEqual(calls, [
     [
       "view",
-      "@simthat/pglite@>=0.0.0",
+      "@acme/pglite@>=0.0.0",
       "version",
       "--json",
     ],
   ]);
   assert.deepEqual(versions, ["0.3.16", "0.3.17"]);
   assert.deepEqual(
-    parsePublishedVersions('"0.3.17"\n', "@simthat/pglite"),
+    parsePublishedVersions('"0.3.17"\n', "@acme/pglite"),
     ["0.3.17"],
   );
   assert.deepEqual(
-    readPublishedVersions(() => undefined, "@simthat/pglite"),
+    readPublishedVersions(() => undefined, "@acme/pglite"),
     [],
   );
   assert.throws(
-    () => parsePublishedVersions("", "@simthat/pglite"),
+    () => parsePublishedVersions("", "@acme/pglite"),
     /empty published versions response/,
   );
   assert.throws(
-    () => parsePublishedVersions("{", "@simthat/pglite"),
+    () => parsePublishedVersions("{", "@acme/pglite"),
     /invalid published versions response/,
   );
   assert.throws(
-    () => parsePublishedVersions('{"version":"0.3.17"}', "@simthat/pglite"),
+    () => parsePublishedVersions('{"version":"0.3.17"}', "@acme/pglite"),
     /invalid published version/,
   );
   assert.throws(
     () =>
       parsePublishedVersions(
         '["0.3.17","0.3.17"]',
-        "@simthat/pglite",
+        "@acme/pglite",
       ),
     /duplicate published version/,
   );
@@ -546,7 +553,7 @@ test("registry versions use a stable range and fail closed", () => {
 
 test("registry classification rejects reused and regressed versions", () => {
   const pkg = {
-    name: "@simthat/pglite",
+    name: "@acme/pglite",
     version: "0.3.17",
     fingerprint: "sha256:local",
   };
@@ -570,9 +577,9 @@ test("registry dist-tags use the documented listing command and format", () => {
         "",
       ].join("\n");
     },
-    "@simthat/pglite",
+    "@acme/pglite",
   );
-  assert.deepEqual(calls, [["dist-tag", "ls", "@simthat/pglite"]]);
+  assert.deepEqual(calls, [["dist-tag", "ls", "@acme/pglite"]]);
   assert.deepEqual(
     tags,
     new Map([
@@ -587,7 +594,7 @@ test("registry dist-tags use the documented listing command and format", () => {
         "staging-30300319510: 0.3.17",
         "",
       ].join("\n"),
-      "@simthat/pglite",
+      "@acme/pglite",
     ),
     new Map([
       ["line-0-3", "0.3.17"],
@@ -595,18 +602,18 @@ test("registry dist-tags use the documented listing command and format", () => {
     ]),
   );
   assert.deepEqual(
-    parseDistTagListing("", "@simthat/pglite"),
+    parseDistTagListing("", "@acme/pglite"),
     new Map(),
   );
   assert.throws(
-    () => parseDistTagListing("not a tag record", "@simthat/pglite"),
+    () => parseDistTagListing("not a tag record", "@acme/pglite"),
     /invalid dist-tag record/,
   );
   assert.throws(
     () =>
       parseDistTagListing(
         "line-0-3: 0.3.17\nline-0-3: 0.3.18\n",
-        "@simthat/pglite",
+        "@acme/pglite",
       ),
     /duplicate dist-tag/,
   );
@@ -620,11 +627,11 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
   };
   const partiallyFinalized = parseDistTagListing(
     "line-0-3: 0.3.17\nstaging-30300319510: 0.3.17\n",
-    "@simthat/pglite",
+    "@acme/pglite",
   );
   const stagedOnly = parseDistTagListing(
     "staging-30300319510: 0.3.17\n",
-    "@simthat/pglite-react",
+    "@acme/pglite-react",
   );
 
   assert.deepEqual(
@@ -654,7 +661,7 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
   assert.doesNotThrow(() =>
     validateFinalDistTags({
       ...common,
-      packageName: "@simthat/pglite",
+      packageName: "@acme/pglite",
       tags: finalized,
     }),
   );
@@ -662,7 +669,7 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
     () =>
       validateFinalDistTags({
         ...common,
-        packageName: "@simthat/pglite",
+        packageName: "@acme/pglite",
         tags: partiallyFinalized,
       }),
     /still has staging dist-tags/,
@@ -671,20 +678,20 @@ test("dist-tag finalization recovers from a partial previous attempt", () => {
 
 test("package-family tag finalization is ordered and idempotent", () => {
   const packages = [
-    { name: "@simthat/pglite", version: "0.3.17" },
-    { name: "@simthat/pglite-react", version: "0.2.34" },
-    { name: "@simthat/pglite-vue", version: "0.2.34" },
+    { name: "@acme/pglite", version: "0.3.17" },
+    { name: "@acme/pglite-react", version: "0.2.34" },
+    { name: "@acme/pglite-vue", version: "0.2.34" },
   ];
   const registry = fakeDistTagRegistry({
-    "@simthat/pglite": {
+    "@acme/pglite": {
       "line-0-3": "0.3.17",
       "staging-30300319510": "0.3.17",
       "staging-future": "0.3.18",
     },
-    "@simthat/pglite-react": {
+    "@acme/pglite-react": {
       "staging-30300319510": "0.2.34",
     },
-    "@simthat/pglite-vue": {},
+    "@acme/pglite-vue": {},
   });
   const finalize = () =>
     finalizeDistTags({
@@ -701,41 +708,41 @@ test("package-family tag finalization is ordered and idempotent", () => {
     [
       "dist-tag",
       "add",
-      "@simthat/pglite-react@0.2.34",
+      "@acme/pglite-react@0.2.34",
       "line-0-3",
     ],
     [
       "dist-tag",
       "add",
-      "@simthat/pglite-vue@0.2.34",
+      "@acme/pglite-vue@0.2.34",
       "line-0-3",
     ],
     [
       "dist-tag",
       "rm",
-      "@simthat/pglite",
+      "@acme/pglite",
       "staging-30300319510",
     ],
     [
       "dist-tag",
       "rm",
-      "@simthat/pglite-react",
+      "@acme/pglite-react",
       "staging-30300319510",
     ],
   ]);
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite")),
+    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite")),
     {
       "line-0-3": "0.3.17",
       "staging-future": "0.3.18",
     },
   );
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite-react")),
+    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite-react")),
     { "line-0-3": "0.2.34" },
   );
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite-vue")),
+    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite-vue")),
     { "line-0-3": "0.2.34" },
   );
 
@@ -748,7 +755,7 @@ test("package-family tag finalization is ordered and idempotent", () => {
 
 test("package-family tag finalization can promote latest", () => {
   const registry = fakeDistTagRegistry({
-    "@simthat/pglite": {
+    "@acme/pglite": {
       latest: "0.3.16",
       "line-0-3": "0.3.17",
       "staging-30300319510": "0.3.17",
@@ -756,14 +763,14 @@ test("package-family tag finalization can promote latest", () => {
   });
 
   finalizeDistTags({
-    packages: [{ name: "@simthat/pglite", version: "0.3.17" }],
+    packages: [{ name: "@acme/pglite", version: "0.3.17" }],
     distTag: "line-0-3",
     promoteLatest: true,
     runNpm: registry.runNpm,
   });
 
   assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@simthat/pglite")),
+    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite")),
     {
       latest: "0.3.17",
       "line-0-3": "0.3.17",
@@ -779,7 +786,7 @@ test("package-family tag finalization validates all listings before writes", () 
       mutations.push(args);
       return "";
     }
-    if (packageName === "@simthat/pglite") {
+    if (packageName === "@acme/pglite") {
       return "staging-30300319510: 0.3.17\n";
     }
     return "not a dist-tag record\n";
@@ -789,14 +796,14 @@ test("package-family tag finalization validates all listings before writes", () 
     () =>
       finalizeDistTags({
         packages: [
-          { name: "@simthat/pglite", version: "0.3.17" },
-          { name: "@simthat/pglite-react", version: "0.2.34" },
+          { name: "@acme/pglite", version: "0.3.17" },
+          { name: "@acme/pglite-react", version: "0.2.34" },
         ],
         distTag: "line-0-3",
         promoteLatest: false,
         runNpm,
       }),
-    /invalid dist-tag record for @simthat\/pglite-react/,
+    /invalid dist-tag record for @acme\/pglite-react/,
   );
   assert.deepEqual(mutations, []);
 });
@@ -815,7 +822,7 @@ test("package-family tag finalization enforces registry postconditions", () => {
   assert.throws(
     () =>
       finalizeDistTags({
-        packages: [{ name: "@simthat/pglite", version: "0.3.17" }],
+        packages: [{ name: "@acme/pglite", version: "0.3.17" }],
         distTag: "line-0-3",
         promoteLatest: false,
         runNpm,
@@ -823,18 +830,18 @@ test("package-family tag finalization enforces registry postconditions", () => {
     /dist-tag line-0-3 does not point to 0.3.17/,
   );
   assert.deepEqual(mutations, [
-    ["dist-tag", "add", "@simthat/pglite@0.3.17", "line-0-3"],
+    ["dist-tag", "add", "@acme/pglite@0.3.17", "line-0-3"],
     [
       "dist-tag",
       "rm",
-      "@simthat/pglite",
+      "@acme/pglite",
       "staging-30300319510",
     ],
   ]);
 });
 
 test("remote package tags resolve to their commit targets", () => {
-  const tag = "@simthat/pglite@0.3.17";
+  const tag = "@acme/pglite@0.3.17";
   const tagObject = "a".repeat(40);
   const commit = "b".repeat(40);
 
@@ -861,13 +868,13 @@ test("existing package tags retain their original matching release commit", () =
   const originalCommit = "a".repeat(40);
   assert.deepEqual(
     planPackageTag({
-      tag: "@simthat/pglite@0.3.17",
+      tag: "@acme/pglite@0.3.17",
       remoteCommit: originalCommit,
       currentCommit: "b".repeat(40),
-      packageName: "@simthat/pglite",
+      packageName: "@acme/pglite",
       packageVersion: "0.3.17",
       manifest: {
-        name: "@simthat/pglite",
+        name: "@acme/pglite",
         version: "0.3.17",
       },
     }),
@@ -879,10 +886,10 @@ test("missing package tags are created for the current release", () => {
   const currentCommit = "b".repeat(40);
   assert.deepEqual(
     planPackageTag({
-      tag: "@simthat/pglite-socket@0.0.23",
+      tag: "@acme/pglite-socket@0.0.23",
       remoteCommit: undefined,
       currentCommit,
-      packageName: "@simthat/pglite-socket",
+      packageName: "@acme/pglite-socket",
       packageVersion: "0.0.23",
       manifest: undefined,
     }),
@@ -892,10 +899,10 @@ test("missing package tags are created for the current release", () => {
 
 test("existing package tag targets must declare the tagged identity", () => {
   const common = {
-    tag: "@simthat/pglite@0.3.17",
+    tag: "@acme/pglite@0.3.17",
     remoteCommit: "a".repeat(40),
     currentCommit: "b".repeat(40),
-    packageName: "@simthat/pglite",
+    packageName: "@acme/pglite",
     packageVersion: "0.3.17",
   };
 
@@ -904,26 +911,26 @@ test("existing package tag targets must declare the tagged identity", () => {
       planPackageTag({
         ...common,
         manifest: {
-          name: "@simthat/pglite",
+          name: "@acme/pglite",
           version: "0.3.16",
         },
       }),
-    /does not declare @simthat\/pglite@0\.3\.17/,
+    /does not declare @acme\/pglite@0\.3\.17/,
   );
   assert.throws(
     () =>
       planPackageTag({
         ...common,
         manifest: {
-          name: "@simthat/pglite-react",
+          name: "@acme/pglite-react",
           version: "0.3.17",
         },
       }),
-    /does not declare @simthat\/pglite@0\.3\.17/,
+    /does not declare @acme\/pglite@0\.3\.17/,
   );
   assert.throws(
     () => planPackageTag({ ...common, manifest: undefined }),
-    /does not declare @simthat\/pglite@0\.3\.17/,
+    /does not declare @acme\/pglite@0\.3\.17/,
   );
 });
 
@@ -945,21 +952,21 @@ test("automatic publication reacts only to package version changes", () => {
   const current = new Map([
     [
       "packages/pglite/package.json",
-      { name: "@simthat/pglite", version: "0.3.17", description: "new" },
+      { name: "@acme/pglite", version: "0.3.17", description: "new" },
     ],
     [
       "packages/pglite-react/package.json",
-      { name: "@simthat/pglite-react", version: "0.2.34" },
+      { name: "@acme/pglite-react", version: "0.2.34" },
     ],
   ]);
   const unchangedVersions = new Map([
     [
       "packages/pglite/package.json",
-      { name: "@simthat/pglite", version: "0.3.17", description: "old" },
+      { name: "@acme/pglite", version: "0.3.17", description: "old" },
     ],
     [
       "packages/pglite-react/package.json",
-      { name: "@simthat/pglite-react", version: "0.2.34" },
+      { name: "@acme/pglite-react", version: "0.2.34" },
     ],
   ]);
   assert.deepEqual(
@@ -980,7 +987,7 @@ test("automatic publication reacts only to package version changes", () => {
     ),
     [
       {
-        name: "@simthat/pglite",
+        name: "@acme/pglite",
         before: "0.3.16",
         after: "0.3.17",
       },
@@ -1032,7 +1039,7 @@ test("the package scope follows the manifest, not the tooling", () => {
     ...validConfig,
     packages: validConfig.packages.map((entry) => ({
       ...entry,
-      name: entry.name.replace("@simthat/", "@example/"),
+      name: entry.name.replace("@acme/", "@example/"),
     })),
   };
   const resolved = validateReleaseConfig(elsewhere);
@@ -1055,10 +1062,10 @@ test("the package scope follows the manifest, not the tooling", () => {
       validateReleaseConfig({
         ...validConfig,
         packages: [
-          { ...validConfig.packages[0], name: "@simthat/pglite-tools" },
+          { ...validConfig.packages[0], name: "@acme/pglite-tools" },
         ],
       }),
-    /must include @simthat\/pglite/,
+    /must include @acme\/pglite/,
   );
 });
 
@@ -1066,9 +1073,9 @@ test("fork repositories resolve from the run context and the submodule link", ()
   assert.equal(
     runContextRepository({
       GITHUB_SERVER_URL: "https://github.com",
-      GITHUB_REPOSITORY: "simthat/pglite",
+      GITHUB_REPOSITORY: "acme/pglite",
     }),
-    "https://github.com/simthat/pglite",
+    "https://github.com/acme/pglite",
   );
   assert.throws(
     () => runContextRepository({ GITHUB_SERVER_URL: "https://github.com" }),
@@ -1078,17 +1085,17 @@ test("fork repositories resolve from the run context and the submodule link", ()
     () =>
       runContextRepository({
         GITHUB_SERVER_URL: "github.com",
-        GITHUB_REPOSITORY: "simthat/pglite",
+        GITHUB_REPOSITORY: "acme/pglite",
       }),
     /invalid GITHUB_SERVER_URL/,
   );
 
   assert.equal(
     resolveSubmoduleRepository(
-      "https://github.com/simthat/pglite",
+      "https://github.com/acme/pglite",
       "../postgres-pglite.git",
     ),
-    "https://github.com/simthat/postgres-pglite",
+    "https://github.com/acme/postgres-pglite",
   );
   assert.equal(
     resolveSubmoduleRepository(
@@ -1099,7 +1106,7 @@ test("fork repositories resolve from the run context and the submodule link", ()
   );
   assert.equal(
     resolveSubmoduleRepository(
-      "https://github.com/simthat/pglite",
+      "https://github.com/acme/pglite",
       "https://github.com/another/postgres-pglite.git",
     ),
     "https://github.com/another/postgres-pglite",
@@ -1107,8 +1114,8 @@ test("fork repositories resolve from the run context and the submodule link", ()
   assert.throws(
     () =>
       resolveSubmoduleRepository(
-        "https://github.com/simthat/pglite",
-        "git@github.com:simthat/postgres-pglite.git",
+        "https://github.com/acme/pglite",
+        "git@github.com:acme/postgres-pglite.git",
       ),
     /unsupported submodule url/,
   );
@@ -1137,7 +1144,7 @@ test("the release workflow reads its identity from the run context", () => {
   assert.match(workflow, /scope: "@\$\{\{ github\.repository_owner \}\}"/);
   assert.doesNotMatch(workflow, /--signer-workflow [a-z]/);
   assert.equal(
-    /astermesh/i.test(workflow),
+    ownerNamePattern.test(workflow),
     false,
     "the release workflow must name no owner",
   );
@@ -1149,7 +1156,7 @@ test("the release workflow reads its identity from the run context", () => {
   assert.equal(schema.$defs.forkWrapper.properties.repository.const, undefined);
   assert.equal(schema.$defs.forkEngine.properties.repository.const, undefined);
   assert.equal(
-    /astermesh/i.test(JSON.stringify(schema)),
+    ownerNamePattern.test(JSON.stringify(schema)),
     false,
     "the lineage schema must name no owner",
   );
