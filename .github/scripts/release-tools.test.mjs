@@ -272,19 +272,25 @@ test("release-tooling CI verifies the live package query read-only", () => {
   assert.doesNotMatch(workflow, /packages: write/);
 });
 
-test("the live package query reads a missing record as an answer", () => {
+test("the live package query judges a 404 against a declared state", () => {
   const workflow = readFileSync(
     new URL("../workflows/test-release-tooling.yml", import.meta.url),
     "utf8",
   );
 
-  // classify-packages.mjs releases the first version of a family against an
-  // empty registry record, so the probe must not treat that same 404 as a
-  // failure — otherwise the gate blocks every release line before its first
-  // publication, including the one that creates it.
-  assert.match(workflow, /grep -q 'E404'/);
-  assert.match(workflow, /has no published record yet/);
-  // Any other npm failure still fails the step, with its own output shown.
+  // GitHub Packages returns the same 404, worded the same way, for a record
+  // that does not exist and for one this token may not read. The probe must
+  // therefore never conclude anything from a 404 alone.
+  assert.match(workflow, /PUBLISHED_STATE: absent/);
+  assert.match(
+    workflow,
+    /\[ "\$PUBLISHED_STATE" = "absent" \] && grep -q 'E404'/,
+  );
+  // A positive control runs first, so a 404 cannot stand in for a broken
+  // connection, a missing token or a rejected one.
+  assert.match(workflow, /npm whoami --registry=https:\/\/npm\.pkg\.github\.com/);
+  // Both disagreements with the declared state fail.
+  assert.match(workflow, /is declared absent, but the registry returned a record/);
   assert.match(workflow, /cat "\$RUNNER_TEMP\/npm-view\.err" >&2\n\s*exit 1/);
 });
 
