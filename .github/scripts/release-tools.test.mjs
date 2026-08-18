@@ -288,7 +288,7 @@ test("the live package query judges a 404 against a declared state", () => {
   // GitHub Packages returns the same 404, worded the same way, for a record
   // that does not exist and for one this token may not read. The probe must
   // therefore never conclude anything from a 404 alone.
-  assert.match(workflow, /PUBLISHED_STATE: absent/);
+  assert.match(workflow, /PUBLISHED_STATE: present/);
   assert.match(
     workflow,
     /\[ "\$PUBLISHED_STATE" = "absent" \] && grep -q 'E404'/,
@@ -1162,19 +1162,24 @@ test("the release workflow reads its identity from the run context", () => {
   );
 });
 
-test("the tooling gate runs on both the old and the new branch name", () => {
+test("the tooling gate runs on the shared CI branch, and names no other", () => {
   const workflow = readFileSync(
     new URL("../workflows/test-release-tooling.yml", import.meta.url),
     "utf8",
   );
 
-  for (const branch of ["astermesh/ci", "simbox/ci"]) {
-    assert.equal(
-      workflow.split(`      - ${branch}\n`).length - 1,
-      2,
-      `${branch} must be filtered on for both pull_request and push`,
-    );
-  }
+  assert.equal(
+    workflow.split("      - simbox/ci\n").length - 1,
+    2,
+    "simbox/ci must be filtered on for both pull_request and push",
+  );
+  // The rename listed both names for exactly as long as it took to merge the
+  // pull request that renamed the filter. Nothing should carry the old one now.
+  assert.equal(
+    ownerNamePattern.test(workflow),
+    false,
+    "the tooling gate must name no owner",
+  );
 });
 
 test("the line manifest is read from its declared path", () => {
