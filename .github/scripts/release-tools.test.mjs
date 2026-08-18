@@ -252,16 +252,40 @@ test("release-tooling CI verifies the live package query read-only", () => {
   assert.match(workflow, /registry-url: "https:\/\/npm\.pkg\.github\.com"/);
   assert.match(workflow, /scope: "@\$\{\{ github\.repository_owner \}\}"/);
   assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
-  assert.match(workflow, /PUBLISHED_PACKAGE: "@[a-z0-9][a-z0-9-]*\/pglite"/);
+  // The probe names no owner of its own. On GitHub Packages the scope is the
+  // repository owner, and the run token can read only what its own owner holds,
+  // so a written-down scope breaks the moment the repository moves.
   assert.match(
     workflow,
-    /npm view "\$PUBLISHED_PACKAGE@>=0\.0\.0" version --json --registry=https:\/\/npm\.pkg\.github\.com/,
+    /PUBLISHED_PACKAGE: "@\$\{\{ github\.repository_owner \}\}\/pglite"/,
   );
+  assert.doesNotMatch(workflow, /PUBLISHED_PACKAGE: "@[a-z0-9][a-z0-9-]*\//);
+  assert.match(
+    workflow,
+    /npm view "\$PUBLISHED_PACKAGE@>=0\.0\.0" version --json/,
+  );
+  assert.match(workflow, /--registry=https:\/\/npm\.pkg\.github\.com/);
   assert.match(
     workflow,
     /parsePublishedVersions\(process\.argv\[1\], process\.argv\[2\]\)/,
   );
   assert.doesNotMatch(workflow, /packages: write/);
+});
+
+test("the live package query reads a missing record as an answer", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/test-release-tooling.yml", import.meta.url),
+    "utf8",
+  );
+
+  // classify-packages.mjs releases the first version of a family against an
+  // empty registry record, so the probe must not treat that same 404 as a
+  // failure — otherwise the gate blocks every release line before its first
+  // publication, including the one that creates it.
+  assert.match(workflow, /grep -q 'E404'/);
+  assert.match(workflow, /has no published record yet/);
+  // Any other npm failure still fails the step, with its own output shown.
+  assert.match(workflow, /cat "\$RUNNER_TEMP\/npm-view\.err" >&2\n\s*exit 1/);
 });
 
 test("release source overrides are verification-only line descendants", () => {

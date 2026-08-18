@@ -46,12 +46,30 @@ jobs:
       - name: Check GitHub Packages version query
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # This probe reads a live registry record, so it names the identity the
-          # family is published under today. It moves to the renamed scope once
-          # that scope carries a published release.
-          PUBLISHED_PACKAGE: "@astermesh/pglite"
+          # The probe makes the same live query a release run makes, so it names
+          # the identity this repository owns and publishes rather than a scope
+          # written down here. On GitHub Packages the scope is the owner, and the
+          # run token can only read what its own owner holds.
+          PUBLISHED_PACKAGE: "@${{ github.repository_owner }}/pglite"
         run: |
-          output="$(npm view "$PUBLISHED_PACKAGE@>=0.0.0" version --json --registry=https://npm.pkg.github.com)"
+          set +e
+          output="$(npm view "$PUBLISHED_PACKAGE@>=0.0.0" version --json \
+            --registry=https://npm.pkg.github.com 2> "$RUNNER_TEMP/npm-view.err")"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            # A missing record is an answer, not a failure: classify-packages.mjs
+            # reads E404 as "nothing published yet" and releases the first version
+            # of a family on it. The probe holds itself to the same contract, so it
+            # keeps working before the family's first release under this name and
+            # starts exercising the parse path by itself once one exists.
+            if grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+              echo "$PUBLISHED_PACKAGE has no published record yet; registry answered 404"
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/npm-view.err" >&2
+            exit 1
+          fi
           node --input-type=module --eval '
             import { parsePublishedVersions } from "./.github/scripts/classify-packages.mjs"
             parsePublishedVersions(process.argv[1], process.argv[2])
