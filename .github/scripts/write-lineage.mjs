@@ -13,7 +13,7 @@ if (!context.build?.builderImage?.digest) {
 }
 
 const predicate = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   releaseLine: context.releaseLine,
   package: {
     name: pkg.name,
@@ -26,7 +26,7 @@ const predicate = {
       packageName: pkg.upstreamName,
       packageVersion: pkg.upstreamVersion,
     },
-    astermesh: context.wrapper.astermesh,
+    fork: context.wrapper.fork,
   },
   engine: context.engine,
   build: context.build,

@@ -7,7 +7,11 @@ permissions:
 on:
   pull_request:
     branches:
+      # Both names are listed for the length of the rename. This workflow is the
+      # branch's only required check, and a filter naming just the new ref would
+      # keep it from running on the pull request that migrates the tooling.
       - astermesh/ci
+      - simbox/ci
     paths:
       - ".github/attestations/**"
       - ".github/scripts/**"
@@ -16,6 +20,7 @@ on:
   push:
     branches:
       - astermesh/ci
+      - simbox/ci
     paths:
       - ".github/attestations/**"
       - ".github/scripts/**"
@@ -32,7 +37,7 @@ jobs:
         with:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
-          scope: "@astermesh"
+          scope: "@${{ github.repository_owner }}"
       - name: Check release scripts
         run: |
           for script in .github/scripts/*.mjs; do
@@ -41,11 +46,53 @@ jobs:
       - name: Check GitHub Packages version query
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The probe makes the same live query a release run makes, so it names
+          # the identity this repository owns and publishes rather than a scope
+          # written down here. On GitHub Packages the scope is the owner, and the
+          # run token can only read what its own owner holds.
+          PUBLISHED_PACKAGE: "@${{ github.repository_owner }}/pglite"
+          # GitHub Packages answers an absent record and an unreadable one with the
+          # same 404, in the same words — it says so itself: "could not be found or
+          # you do not have permission to access it". A 404 therefore carries no
+          # meaning on its own, and is only accepted here against a declared
+          # expectation. Flip this to `present` in the batch that follows the
+          # family's first publication under this owner; from then on a 404 is a
+          # failure again, which is what it should be once a record exists.
+          PUBLISHED_STATE: absent
         run: |
-          output="$(npm view '@astermesh/pglite@>=0.0.0' version --json --registry=https://npm.pkg.github.com)"
+          # Positive control, so that a 404 below is an answer about the package
+          # rather than about the connection: this fails loudly on a missing token,
+          # a rejected one, or the wrong registry host, none of which the package
+          # query itself can distinguish from an absent record. It runs as its own
+          # command rather than inside a substitution, which would swallow its
+          # exit status and defeat the whole check.
+          echo "registry identity:"
+          npm whoami --registry=https://npm.pkg.github.com
+
+          set +e
+          output="$(npm view "$PUBLISHED_PACKAGE@>=0.0.0" version --json \
+            --registry=https://npm.pkg.github.com 2> "$RUNNER_TEMP/npm-view.err")"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            if [ "$PUBLISHED_STATE" = "absent" ] && grep -q 'E404' "$RUNNER_TEMP/npm-view.err"; then
+              echo "$PUBLISHED_PACKAGE is absent, as declared"
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/npm-view.err" >&2
+            exit 1
+          fi
+
+          if [ "$PUBLISHED_STATE" = "absent" ]; then
+            echo "$PUBLISHED_PACKAGE is declared absent, but the registry returned a record" >&2
+            echo "$output" >&2
+            exit 1
+          fi
+
           node --input-type=module --eval '
             import { parsePublishedVersions } from "./.github/scripts/classify-packages.mjs"
-            parsePublishedVersions(process.argv[1], "@astermesh/pglite")
-          ' "$output"
+            parsePublishedVersions(process.argv[1], process.argv[2])
+          ' "$output" "$PUBLISHED_PACKAGE"
       - name: Test release scripts
         run: node --test .github/scripts/release-tools.test.mjs

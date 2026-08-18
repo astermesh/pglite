@@ -21,6 +21,14 @@ const packedPackagesPath = process.env.PACKED_PACKAGES;
 
 if (!packedPackagesPath) throw new Error("PACKED_PACKAGES is required");
 
+const forkRepository = context.wrapper.fork.repository;
+const acceptedRepositoryUrls = new Set([
+  forkRepository,
+  `${forkRepository}.git`,
+  `git+${forkRepository}`,
+  `git+${forkRepository}.git`,
+]);
+
 function collectPackagePaths(manifest) {
   const paths = new Set(["LICENSE", "NOTICE"]);
   const addPath = (value) => {
@@ -116,23 +124,18 @@ for (const pkg of context.packages) {
         `unexpected packed identity: ${manifest.name}@${manifest.version}`,
       );
     }
-    if (
-      manifest.repository?.url !==
-        "git+https://github.com/astermesh/pglite.git" &&
-      manifest.repository?.url !== "https://github.com/astermesh/pglite" &&
-      manifest.repository?.url !== "git+https://github.com/astermesh/pglite"
-    ) {
+    if (!acceptedRepositoryUrls.has(manifest.repository?.url)) {
       throw new Error(`unexpected repository for ${pkg.name}`);
     }
 
     const requiredPaths = collectPackagePaths(manifest);
     if (pkg.postgresLicense) requiredPaths.add("POSTGRES-LICENSE");
-    if (pkg.name === "@astermesh/pglite") {
+    if (pkg.name === `@${context.scope}/pglite`) {
       requiredPaths.add("dist/pglite.data");
       requiredPaths.add("dist/pglite.js");
       requiredPaths.add("dist/pglite.wasm");
     }
-    if (pkg.name === "@astermesh/pglite-tools") {
+    if (pkg.name === `@${context.scope}/pglite-tools`) {
       requiredPaths.add("dist/pg_dump.wasm");
     }
     for (const path of requiredPaths) {

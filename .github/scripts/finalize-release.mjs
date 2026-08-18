@@ -59,7 +59,7 @@ const gitTagPlans = context.packages.map((pkg) => {
   const plan = planPackageTag({
     tag,
     remoteCommit,
-    currentCommit: context.wrapper.astermesh.commit,
+    currentCommit: context.wrapper.fork.commit,
     packageName: pkg.name,
     packageVersion: pkg.version,
     manifest,
@@ -95,7 +95,7 @@ const summary = {
   distTag: context.distTag,
   promotedLatest: promoteLatest,
   packages: context.packages.map(({ name, version }) => ({ name, version })),
-  wrapperCommit: context.wrapper.astermesh.commit,
-  engineCommit: context.engine.astermesh.commit,
+  wrapperCommit: context.wrapper.fork.commit,
+  engineCommit: context.engine.fork.commit,
 };
 writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
