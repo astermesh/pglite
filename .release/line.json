@@ -1,44 +1,44 @@
 {
   "schemaVersion": 1,
-  "releaseLine": "astermesh/v0.3",
+  "releaseLine": "simbox/v0.3",
   "distTag": "line-0-3",
   "upstreamWrapperCommit": "4555814e2b0beac8af5d5d760907040b7b8f61df",
   "packages": [
     {
       "directory": "packages/pglite",
-      "name": "@astermesh/pglite",
+      "name": "@simthis/pglite",
       "upstreamName": "@electric-sql/pglite",
       "postgresLicense": true
     },
     {
       "directory": "packages/pglite-react",
-      "name": "@astermesh/pglite-react",
+      "name": "@simthis/pglite-react",
       "upstreamName": "@electric-sql/pglite-react"
     },
     {
       "directory": "packages/pglite-repl",
-      "name": "@astermesh/pglite-repl",
+      "name": "@simthis/pglite-repl",
       "upstreamName": "@electric-sql/pglite-repl"
     },
     {
       "directory": "packages/pglite-socket",
-      "name": "@astermesh/pglite-socket",
+      "name": "@simthis/pglite-socket",
       "upstreamName": "@electric-sql/pglite-socket"
     },
     {
       "directory": "packages/pglite-sync",
-      "name": "@astermesh/pglite-sync",
+      "name": "@simthis/pglite-sync",
       "upstreamName": "@electric-sql/pglite-sync"
     },
     {
       "directory": "packages/pglite-tools",
-      "name": "@astermesh/pglite-tools",
+      "name": "@simthis/pglite-tools",
       "upstreamName": "@electric-sql/pglite-tools",
       "postgresLicense": true
     },
     {
       "directory": "packages/pglite-vue",
-      "name": "@astermesh/pglite-vue",
+      "name": "@simthis/pglite-vue",
       "upstreamName": "@electric-sql/pglite-vue"
     }
   ]

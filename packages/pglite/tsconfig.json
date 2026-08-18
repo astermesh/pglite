@@ -3,11 +3,11 @@
   "compilerOptions": {
     "types": ["@types/emscripten", "node"],
     "paths": {
-      "@astermesh/pg-protocol": [
-        "./node_modules/@astermesh/pg-protocol/src/index"
+      "@simthis/pg-protocol": [
+        "./node_modules/@simthis/pg-protocol/src/index"
       ],
-      "@astermesh/pg-protocol/messages": [
-        "./node_modules/@astermesh/pg-protocol/src/messages"
+      "@simthis/pg-protocol/messages": [
+        "./node_modules/@simthis/pg-protocol/src/messages"
       ]
     }
   },

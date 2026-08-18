@@ -1,5 +1,5 @@
-import type { LiveQuery, LiveQueryResults } from '@astermesh/pglite/live'
-import { query as buildQuery } from '@astermesh/pglite/template'
+import type { LiveQuery, LiveQueryResults } from '@simthis/pglite/live'
+import { query as buildQuery } from '@simthis/pglite/template'
 import { useEffect, useRef, useState } from 'react'
 import { usePGlite } from './provider'
 

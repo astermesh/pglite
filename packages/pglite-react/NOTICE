@@ -1,13 +1,13 @@
-@astermesh/pglite-react is a modified distribution of PGlite React by
+@simthis/pglite-react is a modified distribution of PGlite React by
 Electric DB Limited:
 
 https://github.com/electric-sql/pglite
 
-The AsterMesh distribution uses its own package identity and depends on the
-corresponding @astermesh/pglite package. Exact upstream and AsterMesh source
+This distribution uses its own package identity and depends on the
+corresponding @simthis/pglite package. Exact upstream and fork source
 revisions for each release are recorded in the signed fork-lineage
 attestation associated with the package tarball:
 
-https://github.com/astermesh/pglite
+https://github.com/simthis/pglite
 
 PGlite React is distributed under the Apache License 2.0. See LICENSE.

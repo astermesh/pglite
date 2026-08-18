@@ -12,8 +12,8 @@ import {
   isRef,
   unref,
 } from 'vue-demi'
-import { Results } from '@astermesh/pglite'
-import { query as buildQuery } from '@astermesh/pglite/template'
+import { Results } from '@simthis/pglite'
+import { query as buildQuery } from '@simthis/pglite/template'
 import { injectPGlite } from './dependency-injection'
 
 type UnsubscribeFn = () => Promise<void>

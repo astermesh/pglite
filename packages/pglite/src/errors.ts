@@ -1,4 +1,4 @@
-import { DatabaseError } from '@astermesh/pg-protocol/messages'
+import { DatabaseError } from '@simthis/pg-protocol/messages'
 import { QueryOptions } from './interface'
 
 export interface PGliteError extends DatabaseError {

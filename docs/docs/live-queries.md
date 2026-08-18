@@ -5,8 +5,8 @@ The "live" extension enables you to subscribe to a query and receive updated res
 To use the extension, it needs to be added to the PGlite instance when creating it:
 
 ```ts
-import { PGlite } from '@astermesh/pglite'
-import { live } from '@astermesh/pglite/live'
+import { PGlite } from '@simthis/pglite'
+import { live } from '@simthis/pglite/live'
 
 const pg = await PGlite.create({
   extensions: {

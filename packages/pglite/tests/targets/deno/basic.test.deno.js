@@ -2,7 +2,7 @@ import {
   assertEquals,
   assertRejects,
 } from 'https://deno.land/std@0.202.0/testing/asserts.ts'
-import { PGlite } from '@astermesh/pglite'
+import { PGlite } from '@simthis/pglite'
 
 Deno.test('basic exec', async () => {
   const db = new PGlite()

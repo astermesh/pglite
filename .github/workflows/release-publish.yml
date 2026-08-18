@@ -1,4 +1,4 @@
-name: publish AsterMesh package family
+name: publish the package family
 
 permissions:
   artifact-metadata: write
@@ -10,7 +10,7 @@ permissions:
 on:
   push:
     branches:
-      - "astermesh/v*"
+      - "simbox/v*"
     paths:
       - "packages/*/package.json"
 
@@ -30,22 +30,22 @@ jobs:
       - name: Checkout release tooling
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          repository: astermesh/pglite
-          ref: astermesh/ci
+          repository: simthis/pglite
+          ref: simbox/ci
           sparse-checkout: .github
-          path: .astermesh-ci
+          path: .release-toolset
       - name: Detect version changes
         id: versions
         env:
           AFTER_SHA: ${{ github.sha }}
           BEFORE_SHA: ${{ github.event.before }}
-        run: node .astermesh-ci/.github/scripts/detect-version-change.mjs
+        run: node .release-toolset/.github/scripts/detect-version-change.mjs
 
   publish:
     name: Publish changed package versions
     needs: detect
     if: needs.detect.outputs.publish == 'true'
-    uses: astermesh/pglite/.github/workflows/build.yml@astermesh/ci
+    uses: simthis/pglite/.github/workflows/build.yml@simbox/ci
     with:
       ref: ${{ github.sha }}
       line: ${{ github.ref_name }}

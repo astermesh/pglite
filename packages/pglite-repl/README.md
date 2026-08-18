@@ -15,14 +15,14 @@ A REPL, or terminal, for use in the browser with PGlite, allowing you to have an
 ## How to use with React
 
 ```
-npm install @astermesh/pglite-repl
+npm install @simthis/pglite-repl
 ```
 
 then to include in a page:
 
 ```tsx
-import { PGlite } from "@astermesh/pglite";
-import { Repl } from "@astermesh/pglite-repl";
+import { PGlite } from "@simthis/pglite";
+import { Repl } from "@simthis/pglite-repl";
 
 function MyComponent() {
   const pg = new PGlite();
@@ -60,8 +60,8 @@ component for easy inclusion in a bundled application or another framework.
 <pglite-repl id="repl"></pglite-repl>
 
 <script type="module">
-  import { PGlite } from "@astermesh/pglite";
-  import "@astermesh/pglite-repl/webcomponent";
+  import { PGlite } from "@simthis/pglite";
+  import "@simthis/pglite-repl/webcomponent";
 
   // Create a PGlite instance
   const pg = new PGlite();

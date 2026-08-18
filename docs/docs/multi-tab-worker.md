@@ -10,8 +10,8 @@ First, you need to create a js file for your worker instance. You use the `worke
 
 ```js
 // my-pglite-worker.js
-import { PGlite } from '@astermesh/pglite'
-import { worker } from '@astermesh/pglite/worker'
+import { PGlite } from '@simthis/pglite'
+import { worker } from '@simthis/pglite/worker'
 
 worker({
   async init() {
@@ -24,7 +24,7 @@ worker({
 Then connect the `PGliteWorker` to your new worker process in your main script:
 
 ```js
-import { PGliteWorker } from '@astermesh/pglite/worker'
+import { PGliteWorker } from '@simthis/pglite/worker'
 
 const pg = new PGliteWorker(
   new Worker(new URL('./my-pglite-worker.js', import.meta.url), {
@@ -60,8 +60,8 @@ The `worker()` wrapper takes a single options argument, with a single `init` pro
 
 ```js
 // my-pglite-worker.js
-import { PGlite } from '@astermesh/pglite'
-import { worker } from '@astermesh/pglite/worker'
+import { PGlite } from '@simthis/pglite'
+import { worker } from '@simthis/pglite/worker'
 
 worker({
   async init(options) {
@@ -75,7 +75,7 @@ worker({
 })
 
 // my-app.js
-import { PGliteWorker } from '@astermesh/pglite/worker'
+import { PGliteWorker } from '@simthis/pglite/worker'
 
 const pg = new PGliteWorker(
   new Worker(new URL('./my-pglite-worker.js', import.meta.url), {
@@ -98,9 +98,9 @@ Any extension can be used by the PGlite instance inside the worker, however the 
 
 ```js
 // my-pglite-worker.js
-import { PGlite } from '@astermesh/pglite'
-import { worker } from '@astermesh/pglite/worker'
-import { vector } from '@astermesh/pglite/vector'
+import { PGlite } from '@simthis/pglite'
+import { worker } from '@simthis/pglite/worker'
+import { vector } from '@simthis/pglite/vector'
 
 worker({
   async init() {
@@ -116,8 +116,8 @@ worker({
 Extensions that only use the PGlite plugin interface, such as live queries, can be used on the main thread with `PGliteWorker` to expose their functionality; this is done by providing a standard options object as a second argument to the `PGliteWorker` constructor:
 
 ```js
-import { PGliteWorker } from '@astermesh/pglite/worker'
-import { live } from '@astermesh/pglite/live'
+import { PGliteWorker } from '@simthis/pglite/worker'
+import { live } from '@simthis/pglite/live'
 
 const pg = new PGliteWorker(
   new Worker(new URL('./my-pglite-worker.js', import.meta.url), {
@@ -134,8 +134,8 @@ const pg = new PGliteWorker(
 `PGliteWorker` also has a `create` static method that resolves to a new instance when it is fully initiated. This also adds the correct types for any extensions to the `PGliteWorker` instance:
 
 ```ts
-import { PGliteWorker } from '@astermesh/pglite/worker'
-import { live } from '@astermesh/pglite/live'
+import { PGliteWorker } from '@simthis/pglite/worker'
+import { live } from '@simthis/pglite/live'
 
 const pg = await PGliteWorker.create(
   new Worker(new URL('./my-pglite-worker.js', import.meta.url), {

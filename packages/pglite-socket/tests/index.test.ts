@@ -8,7 +8,7 @@ import {
   beforeAll,
   afterAll,
 } from 'vitest'
-import { PGlite } from '@astermesh/pglite'
+import { PGlite } from '@simthis/pglite'
 import { PGLiteSocketHandler, PGLiteSocketServer } from '../src'
 import { Socket, createConnection } from 'net'
 import { existsSync } from 'fs'

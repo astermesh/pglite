@@ -1,4 +1,4 @@
-import { type PGliteInterface } from '@astermesh/pglite'
+import { type PGliteInterface } from '@simthis/pglite'
 import { describe } from 'psql-describe'
 import type { Results, Response } from './types'
 

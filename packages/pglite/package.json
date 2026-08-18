@@ -1,5 +1,5 @@
 {
-  "name": "@astermesh/pglite",
+  "name": "@simthis/pglite",
   "version": "0.3.18",
   "private": false,
   "publishConfig": {
@@ -167,7 +167,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/astermesh/pglite",
+    "url": "git+https://github.com/simthis/pglite.git",
     "directory": "packages/pglite"
   },
   "scripts": {
@@ -193,7 +193,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
-    "@astermesh/pg-protocol": "workspace:*",
+    "@simthis/pg-protocol": "workspace:*",
     "@types/emscripten": "^1.41.1",
     "@types/node": "^20.16.11",
     "@types/node-fetch": "^2.6.11",

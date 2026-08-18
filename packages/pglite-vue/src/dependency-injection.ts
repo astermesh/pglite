@@ -1,5 +1,5 @@
 import { provide, inject, unref, Ref } from 'vue-demi'
-import { PGliteWithLive } from '@astermesh/pglite/live'
+import { PGliteWithLive } from '@simthis/pglite/live'
 
 interface PGliteDependencyInjection<T extends PGliteWithLive> {
   providePGlite: (db: Ref<T | undefined> | (T | undefined)) => void

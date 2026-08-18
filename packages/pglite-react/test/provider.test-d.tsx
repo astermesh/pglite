@@ -1,7 +1,7 @@
 import { describe, it, expectTypeOf } from 'vitest'
-import { PGlite, PGliteInterfaceExtensions } from '@astermesh/pglite'
-import { live } from '@astermesh/pglite/live'
-import { vector } from '@astermesh/pglite/vector'
+import { PGlite, PGliteInterfaceExtensions } from '@simthis/pglite'
+import { live } from '@simthis/pglite/live'
+import { vector } from '@simthis/pglite/vector'
 import { makePGliteProvider } from '../src/provider.js'
 
 describe('provider', () => {

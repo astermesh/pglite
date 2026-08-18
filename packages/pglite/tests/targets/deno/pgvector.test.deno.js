@@ -1,6 +1,6 @@
 import { assertEquals } from 'https://deno.land/std@0.202.0/testing/asserts.ts'
-import { PGlite } from '@astermesh/pglite'
-import { vector } from '@astermesh/pglite/vector'
+import { PGlite } from '@simthis/pglite'
+import { vector } from '@simthis/pglite/vector'
 
 Deno.test('pgvector', async () => {
   const pg = new PGlite({

@@ -176,7 +176,7 @@ async function main() {
 To make it available in our online [REPL](https://pglite.dev/repl/), add the extension to `docs/repl/allExtensions.ts`:
 
 ```
-export { myawesomeextension } from '@astermesh/pglite/myawesomeextension
+export { myawesomeextension } from '@simthis/pglite/myawesomeextension
 
 ```
 
@@ -194,7 +194,7 @@ const baseExtensions: Extension[] = [
       'My awesome PostgreSQL extension',
     docs: 'https://github.com/myawesomeextension/extension',
     tags: ['postgres extension'],
-    importPath: '@astermesh/pglite/myawesomeextension',
+    importPath: '@simthis/pglite/myawesomeextension',
     importName: 'my_awesome_extension',
     size: 123456,
 },

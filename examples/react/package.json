@@ -13,8 +13,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@astermesh/pglite": "workspace:*",
-    "@astermesh/pglite-react": "workspace:*",
+    "@simthis/pglite": "workspace:*",
+    "@simthis/pglite-react": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

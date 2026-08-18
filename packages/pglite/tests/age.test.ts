@@ -9,8 +9,8 @@
  *
  * Usage:
  * ```typescript
- * import { PGlite } from '@astermesh/pglite'
- * import { age } from '@astermesh/pglite/age'
+ * import { PGlite } from '@simthis/pglite'
+ * import { age } from '@simthis/pglite/age'
  *
  * const pg = new PGlite({ extensions: { age } })
  * ```

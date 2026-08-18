@@ -1,5 +1,5 @@
 {
-  "name": "@astermesh/pglite-socket",
+  "name": "@simthis/pglite-socket",
   "version": "0.0.24",
   "description": "A socket implementation for PGlite enabling remote connections",
   "author": "Electric DB Limited",
@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/astermesh/pglite",
+    "url": "git+https://github.com/simthis/pglite.git",
     "directory": "packages/pglite-socket"
   },
   "keywords": [
@@ -56,8 +56,8 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
-    "@astermesh/pg-protocol": "workspace:*",
-    "@astermesh/pglite": "workspace:*",
+    "@simthis/pg-protocol": "workspace:*",
+    "@simthis/pglite": "workspace:*",
     "@types/emscripten": "^1.41.1",
     "@types/node": "^20.16.11",
     "pg": "^8.14.0",
@@ -66,6 +66,6 @@
     "vitest": "^1.3.1"
   },
   "peerDependencies": {
-    "@astermesh/pglite": "workspace:^"
+    "@simthis/pglite": "workspace:^"
   }
 }

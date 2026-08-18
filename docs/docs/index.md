@@ -1,8 +1,8 @@
 # Getting started with PGlite
 
-This documentation describes the AsterMesh fork of
+This documentation describes a fork of
 [ElectricSQL PGlite](https://github.com/electric-sql/pglite). Its packages use
-the `@astermesh` scope and are hosted on GitHub Packages, which requires
+the `@simthis` scope and are hosted on GitHub Packages, which requires
 authentication even for public npm packages. Configure the scope and a token
 with `read:packages` by following
 [GitHub's npm registry instructions](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry)
@@ -17,23 +17,23 @@ Install into your project:
 ::: code-group
 
 ```bash [npm]
-npm install @astermesh/pglite
+npm install @simthis/pglite
 ```
 
 ```bash [pnpm]
-pnpm install @astermesh/pglite
+pnpm install @simthis/pglite
 ```
 
 ```bash [yarn]
-yarn add @astermesh/pglite
+yarn add @simthis/pglite
 ```
 
 ```bash [bun]
-bun install @astermesh/pglite
+bun install @simthis/pglite
 ```
 
 ```bash [deno]
-deno add npm:@astermesh/pglite
+deno add npm:@simthis/pglite
 ```
 
 :::
@@ -41,7 +41,7 @@ deno add npm:@astermesh/pglite
 To use the in-memory Postgres:
 
 ```js
-import { PGlite } from '@astermesh/pglite'
+import { PGlite } from '@simthis/pglite'
 
 const db = new PGlite()
 ```
@@ -57,7 +57,7 @@ const db = new PGlite('./path/to/pgdata')
 It can be installed and imported using your usual package manager:
 
 ```js
-import { PGlite } from '@astermesh/pglite'
+import { PGlite } from '@simthis/pglite'
 ```
 
 Then for an in-memory Postgres:

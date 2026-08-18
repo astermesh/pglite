@@ -14,8 +14,8 @@ To use it, pass a PGlite instance as the `db` property.
 
 ```vue
 <script lang="ts" setup>
-import { PGlite } from '@astermesh/pglite'
-import { providePGlite } from '@astermesh/pglite-vue'
+import { PGlite } from '@simthis/pglite'
+import { providePGlite } from '@simthis/pglite-vue'
 
 const db = new PGlite()
 providePGlite(db)
@@ -30,7 +30,7 @@ You can retrieve the provided PGlite instance using `injectPGlite` and then quer
 ```vue
 <script lang="ts" setup>
 import { onMounted, shallowRef } from 'vue'
-import { injectPGlite } from '@astermesh/pglite-vue'
+import { injectPGlite } from '@simthis/pglite-vue'
 
 const db = injectPGlite()
 
@@ -51,10 +51,10 @@ const insertItem = () => {
 The `makePGliteDependencyInjector` function returns typed versions of `providePGlite` and `injectPGlite`, which enables you to provide a PGlite instance with all added extensions and retain then namespaces and types added to it.
 
 ```ts
-import { PGlite, PGliteInterfaceExtensions } from '@astermesh/pglite'
-import { live } from '@astermesh/pglite/live'
-import { vector } from '@astermesh/pglite/vector'
-import { makePGliteDependencyInjector } from '@astermesh/pglite-vue'
+import { PGlite, PGliteInterfaceExtensions } from '@simthis/pglite'
+import { live } from '@simthis/pglite/live'
+import { vector } from '@simthis/pglite/vector'
+import { makePGliteDependencyInjector } from '@simthis/pglite-vue'
 
 const { providePGlite, injectPGlite } = makePGliteDependencyInjector<
   PGlite &
@@ -87,7 +87,7 @@ And its arguments, which can also be [watch sources](https://vuejs.org/guide/ess
 
 ```vue
 <script lang="ts">
-import { useLiveQuery } from '@astermesh/pglite-vue'
+import { useLiveQuery } from '@simthis/pglite-vue'
 
 const maxNumber = 100
 const items = useLiveQuery(
@@ -112,7 +112,7 @@ Similarly to how you can use [`    sql`` `](../api.md#sql) to to construct SQL q
 
 ```vue
 <script lang="ts">
-import { useLiveQuery } from '@astermesh/pglite-vue'
+import { useLiveQuery } from '@simthis/pglite-vue'
 
 const maxNumber = 100
 const items = useLiveQuery.sql`
@@ -147,7 +147,7 @@ And its arguments, which can also be [watch sources](https://vuejs.org/guide/ess
 
 ```vue
 <script lang="ts">
-import { useLiveIncrementalQuery } from '@astermesh/pglite-vue'
+import { useLiveIncrementalQuery } from '@simthis/pglite-vue'
 
 const maxNumber = 100
 const items = useLiveIncrementalQuery(

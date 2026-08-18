@@ -8,16 +8,16 @@ The first _alpha_ version of the sync plugin can sync a "shape" from Electric in
 
 ## Using the Sync plugin _(alpha)_
 
-To use the sync plugin, first install the `@astermesh/pglite-sync` package:
+To use the sync plugin, first install the `@simthis/pglite-sync` package:
 
 ```sh
-npm install @astermesh/pglite-sync
+npm install @simthis/pglite-sync
 ```
 
 Then add it to you PGlite instance and create any local tables needed:
 
 ```ts
-import { electricSync } from '@astermesh/pglite-sync'
+import { electricSync } from '@simthis/pglite-sync'
 
 const pg = await PGlite.create({
   extensions: {

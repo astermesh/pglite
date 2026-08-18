@@ -25,6 +25,6 @@
     "wa-sqlite": "github:rhashimoto/wa-sqlite#v0.9.14"
   },
   "peerDependencies": {
-    "@astermesh/pglite": "workspace:*"
+    "@simthis/pglite": "workspace:*"
   }
 }

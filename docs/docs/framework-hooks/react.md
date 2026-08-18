@@ -13,9 +13,9 @@ The `PGliteProvider` enables you to initiate a PGlite database and pass it to al
 To use it, pass a PGlite instance as the `db` property.
 
 ```ts
-import { PGlite } from "@astermesh/pglite"
-import { live } from "@astermesh/pglite/live"
-import { PGliteProvider } from "@astermesh/pglite-react"
+import { PGlite } from "@simthis/pglite"
+import { live } from "@simthis/pglite/live"
+import { PGliteProvider } from "@simthis/pglite-react"
 
 const db = await PGlite.create({
   extensions: { live }
@@ -37,7 +37,7 @@ const App = () => {
 You can retrieve the provided PGlite instance using `usePGlite` and then query it from within your components.
 
 ```ts
-import { usePGlite } from "@astermesh/pglite-react"
+import { usePGlite } from "@simthis/pglite-react"
 
 const MyComponent = () => {
   const db = usePGlite()
@@ -59,10 +59,10 @@ const MyComponent = () => {
 The `makePGliteProvider` function returns a `PGliteProvider` component and a `usePGlite` hook with the specified type, which enables you to provide a PGlite instance with all added extensions and retain then namespaces and types added to it.
 
 ```ts
-import { PGlite, PGliteInterfaceExtensions } from '@astermesh/pglite'
-import { LiveNamespace } from '@astermesh/pglite/live'
-import { VectorNamespace } from '@astermesh/pglite/vector'
-import { makePGliteProvider } from '@astermesh/pglite-react'
+import { PGlite, PGliteInterfaceExtensions } from '@simthis/pglite'
+import { LiveNamespace } from '@simthis/pglite/live'
+import { VectorNamespace } from '@simthis/pglite/vector'
+import { makePGliteProvider } from '@simthis/pglite-react'
 
 const { PGliteProvider, usePGlite } = makePGliteProvider<
   PGlite &
@@ -94,7 +94,7 @@ And its arguments are:
 2. optional parameters for the query
 
 ```ts
-import { useLiveQuery } from '@astermesh/pglite-react'
+import { useLiveQuery } from '@simthis/pglite-react'
 
 const MyComponent = () => {
   const maxNumber = 100
@@ -122,7 +122,7 @@ const MyComponent = () => {
 Similarly to how you can use [`    sql`` `](../api.md#sql) to to construct SQL queries through string templating, you can do that with `    useLiveQuery.sql`` ` for the hook equivalent. See the [templating](../api.md#tagged-template-queries) section of the API for more details.
 
 ```ts
-import { useLiveQuery } from '@astermesh/pglite-react'
+import { useLiveQuery } from '@simthis/pglite-react'
 
 const MyComponent = () => {
   const maxNumber = 100
@@ -156,7 +156,7 @@ And its arguments are:
 3. the name of the column to key the diff algorithm on
 
 ```ts
-import { useLiveIncrementalQuery } from '@astermesh/pglite-react'
+import { useLiveIncrementalQuery } from '@simthis/pglite-react'
 
 const MyComponent = () => {
   const maxNumber = 100
