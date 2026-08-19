@@ -144,10 +144,7 @@ test("verification mode cannot reach release write capabilities", () => {
   const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
   const finalize = workflow.slice(workflow.indexOf("\n  finalize:\n"));
 
-  assert.equal(
-    permissions,
-    "permissions:\n  contents: read\n  packages: read\n",
-  );
+  assert.equal(permissions, "permissions:\n  contents: read\n");
   assert.match(dispatch, /publish:[\s\S]*default: false[\s\S]*type: boolean/);
   assert.match(dispatch, /source_ref:[\s\S]*default: ""[\s\S]*type: string/);
   assert.match(call, /publish:[\s\S]*required: true[\s\S]*type: boolean/);
@@ -171,10 +168,7 @@ test("verification mode cannot reach release write capabilities", () => {
     beforePublish,
     /^\s+(artifact-metadata|attestations|id-token|packages): write$/m,
   );
-  assert.match(
-    verify,
-    /permissions:\n      contents: read\n      packages: read/,
-  );
+  assert.match(verify, /permissions:\n      contents: read\n    strategy:/);
   assert.doesNotMatch(
     verify,
     /artifact-metadata: write|attestations: write|id-token: write|packages: write/,
@@ -209,7 +203,9 @@ test("verification mode cannot reach release write capabilities", () => {
   assert.match(publish, /artifact-metadata: write/);
   assert.match(publish, /attestations: write/);
   assert.match(publish, /id-token: write/);
-  assert.match(publish, /packages: write/);
+  // The lane publishes to npm by proving who it is, so it needs no write
+  // access to GitHub Packages — and the family resolves nothing from there.
+  assert.doesNotMatch(workflow, /packages: (read|write)/);
   assert.doesNotMatch(publish, /environment:/);
 
   assert.match(finalize, /inputs\.publish/);
@@ -289,6 +285,34 @@ test("the run publishes under the line tag and moves no tag afterwards", () => {
   // `latest` is promoted by a person with npm access, so the workflow offers no
   // input that claims otherwise.
   assert.doesNotMatch(workflow, /promote_latest|PROMOTE_LATEST/);
+});
+
+test("publication proves the run's identity instead of carrying a credential", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+  const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
+
+  // The OIDC exchange has a runtime floor of Node 22.14 and npm CLI 11.5.1.
+  // Only the publishing job is raised to meet it; the rest build and test the
+  // workspace, and their runtime answers to the workspace.
+  assert.match(publish, /node-version: 22\n/);
+  assert.match(publish, /npm install --global npm@(1[2-9]|[2-9][0-9])/);
+  assert.match(publish, /id-token: write/);
+  assert.match(publish, /--access public/);
+
+  // Nothing in the lane carries a registry credential. A GitHub token is not a
+  // stored secret, but it authenticates to GitHub Packages and means nothing
+  // where the family is published now — leaving it would only disguise which
+  // step is trusted and why.
+  assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN/);
+  assert.equal(
+    workflow.match(/secrets\.GITHUB_TOKEN/g).length,
+    1,
+    "the only remaining GitHub token verifies attestations against GitHub",
+  );
+  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
 });
 
 test("release-tooling CI verifies the live package query read-only", () => {
