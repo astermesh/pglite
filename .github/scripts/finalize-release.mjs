@@ -1,21 +1,16 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { finalizeDistTags } from "./dist-tags.mjs";
+import { verifyDistTags } from "./dist-tags.mjs";
 import { planPackageTag, remoteTagCommit } from "./remote-tag.mjs";
 
 const context = JSON.parse(readFileSync(process.env.RELEASE_CONTEXT, "utf8"));
-const stagingTag = process.env.STAGING_TAG;
-const promoteLatest = process.env.PROMOTE_LATEST === "true";
 const summaryPath = process.env.RELEASE_SUMMARY;
 
-if (!stagingTag?.startsWith("staging-")) {
-  throw new Error(`invalid staging tag: ${stagingTag}`);
-}
 if (!summaryPath) throw new Error("RELEASE_SUMMARY is required");
 // Whichever registry the line declared when the context was resolved. Failing
-// closed here matters more than elsewhere: this step writes, and a default
-// would let it write to a registry the run never verified against.
+// closed here rather than defaulting: this step still writes Git tags, and it
+// must not certify a release it read from a registry the run never targeted.
 if (typeof context.registry !== "string" || context.registry === "") {
   throw new Error("release context declares no registry");
 }
@@ -73,10 +68,11 @@ const gitTagPlans = context.packages.map((pkg) => {
   return { plan, tag };
 });
 
-finalizeDistTags({
+// Before any Git tag is pushed: a Git tag asserts that this commit is the
+// release, and it should not outlive a registry state that disagrees.
+verifyDistTags({
   packages: context.packages,
   distTag: context.distTag,
-  promoteLatest,
   runNpm: npm,
 });
 
@@ -99,7 +95,7 @@ const summary = {
   schemaVersion: 1,
   releaseLine: context.releaseLine,
   distTag: context.distTag,
-  promotedLatest: promoteLatest,
+  registry: context.registry,
   packages: context.packages.map(({ name, version }) => ({ name, version })),
   wrapperCommit: context.wrapper.fork.commit,
   engineCommit: context.engine.fork.commit,

@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 
 import {
@@ -322,3 +328,19 @@ const context = {
 };
 
 writeFileSync(contextPath, `${JSON.stringify(context, null, 2)}\n`);
+
+// The three values later jobs need before they have the context file in hand:
+// the tag a package is published under, the registry it is published to, and
+// the scope its `.npmrc` is set up for. Emitting them here is what keeps the
+// workflow from naming any of the three itself.
+if (process.env.GITHUB_OUTPUT) {
+  appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    [
+      `dist_tag=${releaseConfig.distTag}`,
+      `registry=${releaseConfig.registry}`,
+      `scope=${releaseConfig.scope}`,
+      "",
+    ].join("\n"),
+  );
+}

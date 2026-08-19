@@ -17,11 +17,6 @@ on:
         required: false
         default: ""
         type: string
-      promote_latest:
-        description: "when publishing, also move the latest dist-tag"
-        required: false
-        default: false
-        type: boolean
       publish:
         description: "attest, publish, and finalize the verified release"
         required: false
@@ -42,11 +37,6 @@ on:
         required: false
         default: ""
         type: string
-      promote_latest:
-        description: "when publishing, also move the latest dist-tag"
-        required: false
-        default: false
-        type: boolean
       publish:
         description: "attest, publish, and finalize the verified release"
         required: true
@@ -64,13 +54,16 @@ env:
   SOURCE_REF: ${{ inputs.source_ref || inputs.ref }}
   SOURCE_OVERRIDE: ${{ inputs.source_ref != '' }}
   PUBLISH_MODE: ${{ inputs.publish }}
-  STAGING_TAG: staging-${{ github.run_id }}
   TZ: UTC
 
 jobs:
   resolve:
     name: Resolve release identity
     runs-on: ubuntu-latest
+    outputs:
+      dist_tag: ${{ steps.identity.outputs.dist_tag }}
+      registry: ${{ steps.identity.outputs.registry }}
+      scope: ${{ steps.identity.outputs.scope }}
     steps:
       - name: Checkout release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -86,6 +79,7 @@ jobs:
           sparse-checkout: .github
           path: .release-toolset
       - name: Resolve and validate release
+        id: identity
         env:
           RELEASE_CONTEXT: ${{ runner.temp }}/release-context.json
         run: node .release-toolset/.github/scripts/resolve-release.mjs
@@ -280,6 +274,7 @@ jobs:
   publish:
     name: Attest and publish ${{ matrix.name }}@${{ matrix.version }}
     needs:
+      - resolve
       - build
       - verify
       - approval
@@ -366,13 +361,14 @@ jobs:
             'signed fork-lineage predicate differs from validated predicate',
           )
           NODE
-      - name: Publish package to staging tag
+      - name: Publish package under the line tag
         env:
+          DIST_TAG: ${{ needs.resolve.outputs.dist_tag }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARBALL: ${{ runner.temp }}/release/${{ matrix.filename }}
         run: |
           npm publish "$TARBALL" \
-            --tag "$STAGING_TAG" \
+            --tag "$DIST_TAG" \
             --registry=https://npm.pkg.github.com
 
   finalize:
@@ -417,10 +413,9 @@ jobs:
           node-version: 20
           registry-url: "https://npm.pkg.github.com"
           scope: "@${{ github.repository_owner }}"
-      - name: Finalize release tags
+      - name: Verify the published family and tag the release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROMOTE_LATEST: ${{ inputs.promote_latest }}
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
           RELEASE_SUMMARY: ${{ runner.temp }}/release/release-summary.json
         run: node .release-toolset/.github/scripts/finalize-release.mjs

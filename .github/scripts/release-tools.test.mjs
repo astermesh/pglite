@@ -25,11 +25,10 @@ import {
 } from "./classify-packages.mjs";
 import { changedPackageVersions } from "./detect-version-change.mjs";
 import {
-  finalizeDistTags,
+  distTagMismatch,
   parseDistTagListing,
-  planDistTagUpdates,
   readDistTags,
-  validateFinalDistTags,
+  verifyDistTags,
 } from "./dist-tags.mjs";
 import {
   defaultRegistry,
@@ -246,6 +245,27 @@ test("verification runs never share the release concurrency group", () => {
     "the serialized release group must exist only on the publish branch",
   );
   assert.match(concurrency, /cancel-in-progress: false/);
+});
+
+test("the run publishes under the line tag and moves no tag afterwards", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+
+  // The tag is applied by the publish itself, which is the only registry write
+  // the run's own identity can authenticate. Staging a package under a
+  // temporary tag would mean moving a tag afterwards, and moving a tag needs a
+  // credential stored somewhere — which is the thing this lane exists without.
+  assert.match(workflow, /npm publish "\$TARBALL" \\\n            --tag "\$DIST_TAG"/);
+  assert.match(
+    workflow,
+    /DIST_TAG: \$\{\{ needs\.resolve\.outputs\.dist_tag \}\}/,
+  );
+  assert.doesNotMatch(workflow, /staging/i);
+  // `latest` is promoted by a person with npm access, so the workflow offers no
+  // input that claims otherwise.
+  assert.doesNotMatch(workflow, /promote_latest|PROMOTE_LATEST/);
 });
 
 test("release-tooling CI verifies the live package query read-only", () => {
@@ -622,225 +642,143 @@ test("registry dist-tags use the documented listing command and format", () => {
   );
 });
 
-test("dist-tag finalization recovers from a partial previous attempt", () => {
-  const common = {
-    version: "0.3.17",
-    distTag: "line-0-3",
-    promoteLatest: false,
-  };
-  const partiallyFinalized = parseDistTagListing(
-    "line-0-3: 0.3.17\nstaging-30300319510: 0.3.17\n",
-    "@acme/pglite",
-  );
-  const stagedOnly = parseDistTagListing(
-    "staging-30300319510: 0.3.17\n",
-    "@acme/pglite-react",
-  );
+test("dist-tag verification names what the line points at, and at nothing else", () => {
+  const common = { version: "0.3.17", distTag: "line-0-3" };
 
-  assert.deepEqual(
-    planDistTagUpdates({ ...common, tags: partiallyFinalized }),
-    {
-      additions: [],
-      removals: ["staging-30300319510"],
-    },
-  );
-  assert.deepEqual(planDistTagUpdates({ ...common, tags: stagedOnly }), {
-    additions: ["line-0-3"],
-    removals: ["staging-30300319510"],
-  });
-  assert.deepEqual(
-    planDistTagUpdates({ ...common, tags: new Map() }),
-    {
-      additions: ["line-0-3"],
-      removals: [],
-    },
-  );
-
-  const finalized = new Map([["line-0-3", "0.3.17"]]);
-  assert.deepEqual(planDistTagUpdates({ ...common, tags: finalized }), {
-    additions: [],
-    removals: [],
-  });
-  assert.doesNotThrow(() =>
-    validateFinalDistTags({
+  assert.equal(
+    distTagMismatch({
       ...common,
       packageName: "@acme/pglite",
-      tags: finalized,
+      tags: new Map([["line-0-3", "0.3.17"]]),
     }),
+    undefined,
   );
-  assert.throws(
-    () =>
-      validateFinalDistTags({
-        ...common,
-        packageName: "@acme/pglite",
-        tags: partiallyFinalized,
-      }),
-    /still has staging dist-tags/,
+  assert.equal(
+    distTagMismatch({
+      ...common,
+      packageName: "@acme/pglite",
+      tags: new Map([["line-0-3", "0.3.16"]]),
+    }),
+    "@acme/pglite dist-tag line-0-3 names 0.3.16, not 0.3.17",
   );
-});
-
-test("package-family tag finalization is ordered and idempotent", () => {
-  const packages = [
-    { name: "@acme/pglite", version: "0.3.17" },
-    { name: "@acme/pglite-react", version: "0.2.34" },
-    { name: "@acme/pglite-vue", version: "0.2.34" },
-  ];
-  const registry = fakeDistTagRegistry({
-    "@acme/pglite": {
-      "line-0-3": "0.3.17",
-      "staging-30300319510": "0.3.17",
-      "staging-future": "0.3.18",
-    },
-    "@acme/pglite-react": {
-      "staging-30300319510": "0.2.34",
-    },
-    "@acme/pglite-vue": {},
-  });
-  const finalize = () =>
-    finalizeDistTags({
-      packages,
-      distTag: "line-0-3",
-      promoteLatest: false,
-      runNpm: registry.runNpm,
-    });
-
-  finalize();
-
-  const mutations = registry.calls.filter(([, action]) => action !== "ls");
-  assert.deepEqual(mutations, [
-    [
-      "dist-tag",
-      "add",
-      "@acme/pglite-react@0.2.34",
-      "line-0-3",
-    ],
-    [
-      "dist-tag",
-      "add",
-      "@acme/pglite-vue@0.2.34",
-      "line-0-3",
-    ],
-    [
-      "dist-tag",
-      "rm",
-      "@acme/pglite",
-      "staging-30300319510",
-    ],
-    [
-      "dist-tag",
-      "rm",
-      "@acme/pglite-react",
-      "staging-30300319510",
-    ],
-  ]);
-  assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite")),
-    {
-      "line-0-3": "0.3.17",
-      "staging-future": "0.3.18",
-    },
+  // A package the run never reached and one it left behind are different
+  // failures, and they are worth telling apart in the message: the first says
+  // the publish step died, the second says it published the wrong thing.
+  assert.equal(
+    distTagMismatch({
+      ...common,
+      packageName: "@acme/pglite",
+      tags: new Map(),
+    }),
+    "@acme/pglite dist-tag line-0-3 names nothing, not 0.3.17",
   );
-  assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite-react")),
-    { "line-0-3": "0.2.34" },
-  );
-  assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite-vue")),
-    { "line-0-3": "0.2.34" },
-  );
-
-  finalize();
-  assert.deepEqual(
-    registry.calls.filter(([, action]) => action !== "ls"),
-    mutations,
+  // `latest` is moved by a person, not by a run, so where it points is not this
+  // check's business.
+  assert.equal(
+    distTagMismatch({
+      ...common,
+      packageName: "@acme/pglite",
+      tags: new Map([
+        ["line-0-3", "0.3.17"],
+        ["latest", "0.2.9"],
+      ]),
+    }),
+    undefined,
   );
 });
 
-test("package-family tag finalization can promote latest", () => {
+test("the release verification reads every package and writes none", () => {
   const registry = fakeDistTagRegistry({
-    "@acme/pglite": {
-      latest: "0.3.16",
-      "line-0-3": "0.3.17",
-      "staging-30300319510": "0.3.17",
-    },
+    "@acme/pglite": { "line-0-3": "0.3.17", latest: "0.3.16" },
+    "@acme/pglite-react": { "line-0-3": "0.2.34" },
+    "@acme/pglite-vue": { "line-0-3": "0.2.34" },
   });
 
-  finalizeDistTags({
-    packages: [{ name: "@acme/pglite", version: "0.3.17" }],
+  verifyDistTags({
+    packages: [
+      { name: "@acme/pglite", version: "0.3.17" },
+      { name: "@acme/pglite-react", version: "0.2.34" },
+      { name: "@acme/pglite-vue", version: "0.2.34" },
+    ],
     distTag: "line-0-3",
-    promoteLatest: true,
     runNpm: registry.runNpm,
   });
 
+  assert.deepEqual(registry.calls, [
+    ["dist-tag", "ls", "@acme/pglite"],
+    ["dist-tag", "ls", "@acme/pglite-react"],
+    ["dist-tag", "ls", "@acme/pglite-vue"],
+  ]);
+  // The run holds no credential that could write one. If a write ever appears
+  // here, the lane has quietly acquired a stored token again.
+  assert.deepEqual(
+    registry.calls.filter(([, action]) => action !== "ls"),
+    [],
+  );
   assert.deepEqual(
     Object.fromEntries(registry.tagsByPackage.get("@acme/pglite")),
-    {
-      latest: "0.3.17",
-      "line-0-3": "0.3.17",
-    },
+    { "line-0-3": "0.3.17", latest: "0.3.16" },
   );
 });
 
-test("package-family tag finalization validates all listings before writes", () => {
-  const mutations = [];
+test("a half-published family is reported whole, not one package at a time", () => {
+  const registry = fakeDistTagRegistry({
+    "@acme/pglite": { "line-0-3": "0.3.17" },
+    "@acme/pglite-react": { "line-0-3": "0.2.33" },
+    "@acme/pglite-vue": {},
+  });
+
+  assert.throws(
+    () =>
+      verifyDistTags({
+        packages: [
+          { name: "@acme/pglite", version: "0.3.17" },
+          { name: "@acme/pglite-react", version: "0.2.34" },
+          { name: "@acme/pglite-vue", version: "0.2.34" },
+        ],
+        distTag: "line-0-3",
+        runNpm: registry.runNpm,
+      }),
+    (error) => {
+      assert.match(error.message, /line-0-3 does not name this release/);
+      assert.match(
+        error.message,
+        /@acme\/pglite-react dist-tag line-0-3 names 0\.2\.33, not 0\.2\.34/,
+      );
+      assert.match(
+        error.message,
+        /@acme\/pglite-vue dist-tag line-0-3 names nothing, not 0\.2\.34/,
+      );
+      // The package that is correct is not in the list: the operator reruns
+      // what failed, and a list that names everything names nothing.
+      assert.equal(/@acme\/pglite dist-tag/.test(error.message), false);
+      return true;
+    },
+  );
+  assert.equal(registry.calls.length, 3, "every package must still be read");
+});
+
+test("an unreadable listing fails the release rather than passing it", () => {
   const runNpm = (args) => {
     const [, action, packageName] = args;
-    if (action !== "ls") {
-      mutations.push(args);
-      return "";
-    }
-    if (packageName === "@acme/pglite") {
-      return "staging-30300319510: 0.3.17\n";
-    }
-    return "not a dist-tag record\n";
+    assert.equal(action, "ls");
+    return packageName === "@acme/pglite"
+      ? "line-0-3: 0.3.17\n"
+      : "not a dist-tag record\n";
   };
 
   assert.throws(
     () =>
-      finalizeDistTags({
+      verifyDistTags({
         packages: [
           { name: "@acme/pglite", version: "0.3.17" },
           { name: "@acme/pglite-react", version: "0.2.34" },
         ],
         distTag: "line-0-3",
-        promoteLatest: false,
         runNpm,
       }),
     /invalid dist-tag record for @acme\/pglite-react/,
   );
-  assert.deepEqual(mutations, []);
-});
-
-test("package-family tag finalization enforces registry postconditions", () => {
-  const mutations = [];
-  const runNpm = (args) => {
-    const [, action] = args;
-    if (action === "ls") {
-      return "staging-30300319510: 0.3.17\n";
-    }
-    mutations.push(args);
-    return "";
-  };
-
-  assert.throws(
-    () =>
-      finalizeDistTags({
-        packages: [{ name: "@acme/pglite", version: "0.3.17" }],
-        distTag: "line-0-3",
-        promoteLatest: false,
-        runNpm,
-      }),
-    /dist-tag line-0-3 does not point to 0.3.17/,
-  );
-  assert.deepEqual(mutations, [
-    ["dist-tag", "add", "@acme/pglite@0.3.17", "line-0-3"],
-    [
-      "dist-tag",
-      "rm",
-      "@acme/pglite",
-      "staging-30300319510",
-    ],
-  ]);
 });
 
 test("remote package tags resolve to their commit targets", () => {
@@ -937,17 +875,23 @@ test("existing package tag targets must declare the tagged identity", () => {
   );
 });
 
-test("package Git tags are preflighted before registry tags mutate", () => {
+test("no Git tag is pushed before the published family is verified", () => {
   const finalizer = readFileSync(
     new URL("./finalize-release.mjs", import.meta.url),
     "utf8",
   );
-  const gitTagPreflight = finalizer.indexOf("const gitTagPlans");
-  const registryFinalization = finalizer.indexOf("finalizeDistTags({");
+  const preflight = finalizer.indexOf("const gitTagPlans");
+  const verification = finalizer.indexOf("verifyDistTags({");
+  const push = finalizer.indexOf('git(["tag"');
 
-  assert.notEqual(gitTagPreflight, -1);
-  assert.notEqual(registryFinalization, -1);
-  assert.ok(gitTagPreflight < registryFinalization);
+  assert.notEqual(preflight, -1);
+  assert.notEqual(verification, -1);
+  assert.notEqual(push, -1);
+  // The preflight only reads the remote, so it may run first. The push is the
+  // step that makes a claim, and a Git tag must not outlive a registry state
+  // that contradicts it.
+  assert.ok(preflight < verification);
+  assert.ok(verification < push);
 });
 
 test("automatic publication reacts only to package version changes", () => {
