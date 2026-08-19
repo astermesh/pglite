@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "releaseLine": "simbox/v0.3",
   "distTag": "line-0-3",
+  "registry": "https://registry.npmjs.org",
   "upstreamWrapperCommit": "4555814e2b0beac8af5d5d760907040b7b8f61df",
   "packages": [
     {

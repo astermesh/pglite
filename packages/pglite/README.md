@@ -81,12 +81,6 @@ const db = new PGlite('idb://my-pgdata')
 
 Install into your project:
 
-The packages are hosted on GitHub Packages. Configure the `@simthis` scope
-for `https://npm.pkg.github.com` and authenticate with a token carrying
-`read:packages` before installing. GitHub requires authentication for public
-npm packages as well; see
-[GitHub's npm registry instructions](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry).
-
 **NodeJS**
 
 ```bash
