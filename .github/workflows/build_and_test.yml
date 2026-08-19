@@ -39,7 +39,6 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-      packages: read
     env:
       BUILD_CONFIG_FILE: postgres-pglite/.buildconfig
       TZ: UTC
@@ -54,8 +53,6 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@simthis'
       - name: Install
         working-directory: ${{ github.workspace }}
         run: pnpm install

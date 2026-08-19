@@ -22,7 +22,7 @@
   "private": false,
   "publishConfig": {
     "access": "public",
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org"
   },
   "type": "module",
   "main": "./dist/index.cjs",

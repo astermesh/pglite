@@ -5,7 +5,6 @@ permissions:
   attestations: write
   contents: write
   id-token: write
-  packages: write
 
 on:
   push:
@@ -49,6 +48,4 @@ jobs:
     with:
       ref: ${{ github.sha }}
       line: ${{ github.ref_name }}
-      promote_latest: false
       publish: true
-    secrets: inherit
