@@ -1,3 +1,13 @@
+// The run never writes a dist tag. npm's OIDC exchange authenticates `publish`
+// and nothing else, so every package is published with its line tag already
+// attached and no credential is stored anywhere to move one afterwards. What is
+// left here is the reading half: a check that the family the run published is
+// the family the line tag now names.
+//
+// `latest` is deliberately absent. Promoting a line to `latest` is a dist-tag
+// write too, so it is a deliberate act by a person with npm access rather than
+// something a run can do.
+
 export function parseDistTagListing(output, packageName) {
   const tags = new Map();
 
@@ -27,107 +37,34 @@ export function readDistTags(runNpm, packageName) {
   );
 }
 
-export function planDistTagUpdates({
-  tags,
-  version,
-  distTag,
-  promoteLatest,
-}) {
-  const additions = [];
-  if (tags.get(distTag) !== version) additions.push(distTag);
-  if (promoteLatest && tags.get("latest") !== version) {
-    additions.push("latest");
-  }
-
-  const removals = [];
-  for (const [tag, taggedVersion] of tags) {
-    if (tag.startsWith("staging-") && taggedVersion === version) {
-      removals.push(tag);
-    }
-  }
-
-  return { additions, removals };
+export function distTagMismatch({ packageName, tags, version, distTag }) {
+  const tagged = tags.get(distTag);
+  if (tagged === version) return undefined;
+  return `${packageName} dist-tag ${distTag} names ${
+    tagged ?? "nothing"
+  }, not ${version}`;
 }
 
-export function validateFinalDistTags({
-  packageName,
-  tags,
-  version,
-  distTag,
-  promoteLatest,
-}) {
-  if (tags.get(distTag) !== version) {
+export function verifyDistTags({ packages, distTag, runNpm }) {
+  // Every package is checked, and the first failure does not stop the rest.
+  // This is the step that makes a half-published family visible: publication is
+  // per package, so a run that dies mid-family leaves the line tag naming a mix
+  // of old and new, and the operator needs the whole list to know what the
+  // rerun has to cover.
+  const mismatches = packages
+    .map((pkg) =>
+      distTagMismatch({
+        packageName: pkg.name,
+        tags: readDistTags(runNpm, pkg.name),
+        version: pkg.version,
+        distTag,
+      }),
+    )
+    .filter((mismatch) => mismatch !== undefined);
+
+  if (mismatches.length > 0) {
     throw new Error(
-      `${packageName} dist-tag ${distTag} does not point to ${version}`,
+      `${distTag} does not name this release:\n${mismatches.join("\n")}`,
     );
-  }
-  if (promoteLatest && tags.get("latest") !== version) {
-    throw new Error(
-      `${packageName} dist-tag latest does not point to ${version}`,
-    );
-  }
-
-  const stale = planDistTagUpdates({
-    tags,
-    version,
-    distTag,
-    promoteLatest,
-  }).removals;
-  if (stale.length > 0) {
-    throw new Error(
-      `${packageName}@${version} still has staging dist-tags: ${stale.join(
-        ", ",
-      )}`,
-    );
-  }
-}
-
-export function finalizeDistTags({
-  packages,
-  distTag,
-  promoteLatest,
-  runNpm,
-}) {
-  const initialPlans = packages.map((pkg) => ({
-    pkg,
-    ...planDistTagUpdates({
-      tags: readDistTags(runNpm, pkg.name),
-      version: pkg.version,
-      distTag,
-      promoteLatest,
-    }),
-  }));
-
-  for (const { pkg, additions } of initialPlans) {
-    const spec = `${pkg.name}@${pkg.version}`;
-    for (const tag of additions) {
-      runNpm(["dist-tag", "add", spec, tag]);
-    }
-  }
-
-  const cleanupPlans = packages.map((pkg) => ({
-    pkg,
-    ...planDistTagUpdates({
-      tags: readDistTags(runNpm, pkg.name),
-      version: pkg.version,
-      distTag,
-      promoteLatest,
-    }),
-  }));
-
-  for (const { pkg, removals } of cleanupPlans) {
-    for (const tag of removals) {
-      runNpm(["dist-tag", "rm", pkg.name, tag]);
-    }
-  }
-
-  for (const pkg of packages) {
-    validateFinalDistTags({
-      packageName: pkg.name,
-      tags: readDistTags(runNpm, pkg.name),
-      version: pkg.version,
-      distTag,
-      promoteLatest,
-    });
   }
 }

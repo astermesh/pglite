@@ -15,6 +15,14 @@ const packageNamePattern =
   /^@([a-z0-9][a-z0-9-]*)\/pglite(?:-[a-z0-9][a-z0-9-]*)?$/;
 const upstreamNamePattern = /^@electric-sql\/pglite(?:-[a-z0-9][a-z0-9-]*)?$/;
 const packageDirectoryPattern = /^packages\/[a-z0-9][a-z0-9-]*$/;
+// The registry a line publishes to. It is declared by the line rather than compiled into
+// the tooling, so a line can move between registries — as the family did, from GitHub
+// Packages to the public npm registry — without a second pass through every script and
+// workflow. https only: the guard exists to stop an accidental publication, and a plaintext
+// scheme would be a way around it.
+const registryPattern = /^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(\/[A-Za-z0-9._~-]+)*\/?$/;
+// Lines written before the field existed target GitHub Packages.
+export const defaultRegistry = "https://npm.pkg.github.com";
 
 export function parseReleaseLine(line, label = "release line") {
   if (typeof line !== "string") {
@@ -90,6 +98,10 @@ export function validateReleaseConfig(value) {
     "upstream wrapper commit",
     commitPattern,
   );
+  const registry =
+    value.registry === undefined
+      ? defaultRegistry
+      : requireString(value.registry, "registry", registryPattern);
 
   const directories = new Set();
   const names = new Set();
@@ -162,6 +174,7 @@ export function validateReleaseConfig(value) {
     scope,
     rootPackage,
     distTag,
+    registry,
     upstreamWrapperCommit,
     packages,
   };

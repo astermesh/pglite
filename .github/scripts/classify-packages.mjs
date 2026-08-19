@@ -41,16 +41,20 @@ export function classifyPackage(pkg, publishedVersions, publishedFingerprint) {
   return "publish";
 }
 
-function npm(args, options = {}) {
-  const result = spawnSync(
-    "npm",
-    [...args, "--registry=https://npm.pkg.github.com"],
-    { encoding: "utf8", ...options },
-  );
-  if (result.status === 0) return result.stdout;
-  if (result.stderr.includes("E404")) return undefined;
-  process.stderr.write(result.stderr);
-  throw new Error(`npm command failed: npm ${args.join(" ")}`);
+// The registry is not compiled in here: the line manifest declares it and the
+// release context carries it, so this script reads whichever registry the run
+// publishes to.
+export function npmRunner(registry) {
+  return function npm(args, options = {}) {
+    const result = spawnSync("npm", [...args, `--registry=${registry}`], {
+      encoding: "utf8",
+      ...options,
+    });
+    if (result.status === 0) return result.stdout;
+    if (result.stderr.includes("E404")) return undefined;
+    process.stderr.write(result.stderr);
+    throw new Error(`npm command failed: npm ${args.join(" ")}`);
+  };
 }
 
 export function parsePublishedVersions(output, name) {
@@ -88,10 +92,10 @@ export function readPublishedVersions(runNpm, name) {
   return parsePublishedVersions(output, name);
 }
 
-function publishedFingerprint(pkg) {
+function publishedFingerprint(pkg, runNpm) {
   const directory = mkdtempSync(resolve(tmpdir(), "pglite-registry-"));
   try {
-    const output = npm(
+    const output = runNpm(
       [
         "pack",
         `${pkg.name}@${pkg.version}`,
@@ -118,6 +122,10 @@ const planPath = process.env.PUBLISH_PACKAGES;
 
 if (contextPath && packedPath && planPath) {
   const context = JSON.parse(readFileSync(contextPath, "utf8"));
+  if (typeof context.registry !== "string" || context.registry === "") {
+    throw new Error("release context declares no registry");
+  }
+  const npm = npmRunner(context.registry);
   const packed = JSON.parse(readFileSync(packedPath, "utf8"));
   const byName = new Map(packed.map((pkg) => [pkg.name, pkg]));
   const selected = [];
@@ -129,7 +137,7 @@ if (contextPath && packedPath && planPath) {
     }
     const versions = readPublishedVersions(npm, pkg.name);
     const fingerprint = versions.includes(pkg.version)
-      ? publishedFingerprint(pkg)
+      ? publishedFingerprint(pkg, npm)
       : undefined;
     const classification = classifyPackage(pkg, versions, fingerprint);
     console.log(`${classification}: ${pkg.name}@${pkg.version}`);

@@ -4,6 +4,7 @@ import {
   chmodSync,
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -24,13 +25,13 @@ import {
 } from "./classify-packages.mjs";
 import { changedPackageVersions } from "./detect-version-change.mjs";
 import {
-  finalizeDistTags,
+  distTagMismatch,
   parseDistTagListing,
-  planDistTagUpdates,
   readDistTags,
-  validateFinalDistTags,
+  verifyDistTags,
 } from "./dist-tags.mjs";
 import {
+  defaultRegistry,
   loadReleaseConfig,
   parseReleaseLine,
   releaseConfigPath,
@@ -143,10 +144,7 @@ test("verification mode cannot reach release write capabilities", () => {
   const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
   const finalize = workflow.slice(workflow.indexOf("\n  finalize:\n"));
 
-  assert.equal(
-    permissions,
-    "permissions:\n  contents: read\n  packages: read\n",
-  );
+  assert.equal(permissions, "permissions:\n  contents: read\n");
   assert.match(dispatch, /publish:[\s\S]*default: false[\s\S]*type: boolean/);
   assert.match(dispatch, /source_ref:[\s\S]*default: ""[\s\S]*type: string/);
   assert.match(call, /publish:[\s\S]*required: true[\s\S]*type: boolean/);
@@ -170,10 +168,7 @@ test("verification mode cannot reach release write capabilities", () => {
     beforePublish,
     /^\s+(artifact-metadata|attestations|id-token|packages): write$/m,
   );
-  assert.match(
-    verify,
-    /permissions:\n      contents: read\n      packages: read/,
-  );
+  assert.match(verify, /permissions:\n      contents: read\n    strategy:/);
   assert.doesNotMatch(
     verify,
     /artifact-metadata: write|attestations: write|id-token: write|packages: write/,
@@ -208,7 +203,9 @@ test("verification mode cannot reach release write capabilities", () => {
   assert.match(publish, /artifact-metadata: write/);
   assert.match(publish, /attestations: write/);
   assert.match(publish, /id-token: write/);
-  assert.match(publish, /packages: write/);
+  // The lane publishes to npm by proving who it is, so it needs no write
+  // access to GitHub Packages — and the family resolves nothing from there.
+  assert.doesNotMatch(workflow, /packages: (read|write)/);
   assert.doesNotMatch(publish, /environment:/);
 
   assert.match(finalize, /inputs\.publish/);
@@ -244,6 +241,85 @@ test("verification runs never share the release concurrency group", () => {
     "the serialized release group must exist only on the publish branch",
   );
   assert.match(concurrency, /cancel-in-progress: false/);
+});
+
+test("the workflow names no registry of its own", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(
+    workflow.split("registry-url: ${{ needs.resolve.outputs.registry }}")
+      .length - 1,
+    4,
+    "build, verify, publish and finalize each set up npm for the line",
+  );
+  assert.match(workflow, /--registry="\$REGISTRY"/);
+  assert.doesNotMatch(workflow, /npm\.pkg\.github\.com/);
+
+  // One public-registry mention survives, and it is not the family's: npx
+  // fetches the schema validator from npmjs wherever the family is published.
+  assert.deepEqual(workflow.match(/registry\.npmjs\.org/g), [
+    "registry.npmjs.org",
+  ]);
+  assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org/);
+});
+
+test("the run publishes under the line tag and moves no tag afterwards", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+
+  // The tag is applied by the publish itself, which is the only registry write
+  // the run's own identity can authenticate. Staging a package under a
+  // temporary tag would mean moving a tag afterwards, and moving a tag needs a
+  // credential stored somewhere — which is the thing this lane exists without.
+  assert.match(workflow, /npm publish "\$TARBALL" \\\n            --tag "\$DIST_TAG"/);
+  assert.match(
+    workflow,
+    /DIST_TAG: \$\{\{ needs\.resolve\.outputs\.dist_tag \}\}/,
+  );
+  assert.doesNotMatch(workflow, /staging/i);
+  // `latest` is promoted by a person with npm access, so the workflow offers no
+  // input that claims otherwise.
+  assert.doesNotMatch(workflow, /promote_latest|PROMOTE_LATEST/);
+});
+
+test("publication proves the run's identity instead of carrying a credential", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+  const publish = section(workflow, "\n  publish:\n", "\n  finalize:\n");
+
+  // The OIDC exchange has a runtime floor of Node 22.14 and npm CLI 11.5.1.
+  // Only the publishing job is raised to meet it; the rest build and test the
+  // workspace, and their runtime answers to the workspace.
+  assert.match(publish, /node-version: 22\n/);
+  assert.match(publish, /npm install --global npm@(1[2-9]|[2-9][0-9])/);
+  assert.match(publish, /id-token: write/);
+  // Public access is declared by each manifest and checked when the release is
+  // resolved, so the publish command does not repeat it. Two places to state
+  // one fact is how they end up disagreeing.
+  assert.doesNotMatch(publish, /--access/);
+  assert.match(
+    readFileSync(new URL("./resolve-release.mjs", import.meta.url), "utf8"),
+    /publishConfig\?\.access !== "public"/,
+  );
+
+  // Nothing in the lane carries a registry credential. A GitHub token is not a
+  // stored secret, but it authenticates to GitHub Packages and means nothing
+  // where the family is published now — leaving it would only disguise which
+  // step is trusted and why.
+  assert.doesNotMatch(workflow, /NODE_AUTH_TOKEN/);
+  assert.equal(
+    workflow.match(/secrets\.GITHUB_TOKEN/g).length,
+    1,
+    "the only remaining GitHub token verifies attestations against GitHub",
+  );
+  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/);
 });
 
 test("release-tooling CI verifies the live package query read-only", () => {
@@ -378,6 +454,7 @@ test("release config owns and validates the complete package list", () => {
     ...validConfig,
     scope: "acme",
     rootPackage: "@acme/pglite",
+    registry: defaultRegistry,
     packages: [
       validConfig.packages[0],
       { ...validConfig.packages[1], postgresLicense: false },
@@ -619,225 +696,143 @@ test("registry dist-tags use the documented listing command and format", () => {
   );
 });
 
-test("dist-tag finalization recovers from a partial previous attempt", () => {
-  const common = {
-    version: "0.3.17",
-    distTag: "line-0-3",
-    promoteLatest: false,
-  };
-  const partiallyFinalized = parseDistTagListing(
-    "line-0-3: 0.3.17\nstaging-30300319510: 0.3.17\n",
-    "@acme/pglite",
-  );
-  const stagedOnly = parseDistTagListing(
-    "staging-30300319510: 0.3.17\n",
-    "@acme/pglite-react",
-  );
+test("dist-tag verification names what the line points at, and at nothing else", () => {
+  const common = { version: "0.3.17", distTag: "line-0-3" };
 
-  assert.deepEqual(
-    planDistTagUpdates({ ...common, tags: partiallyFinalized }),
-    {
-      additions: [],
-      removals: ["staging-30300319510"],
-    },
-  );
-  assert.deepEqual(planDistTagUpdates({ ...common, tags: stagedOnly }), {
-    additions: ["line-0-3"],
-    removals: ["staging-30300319510"],
-  });
-  assert.deepEqual(
-    planDistTagUpdates({ ...common, tags: new Map() }),
-    {
-      additions: ["line-0-3"],
-      removals: [],
-    },
-  );
-
-  const finalized = new Map([["line-0-3", "0.3.17"]]);
-  assert.deepEqual(planDistTagUpdates({ ...common, tags: finalized }), {
-    additions: [],
-    removals: [],
-  });
-  assert.doesNotThrow(() =>
-    validateFinalDistTags({
+  assert.equal(
+    distTagMismatch({
       ...common,
       packageName: "@acme/pglite",
-      tags: finalized,
+      tags: new Map([["line-0-3", "0.3.17"]]),
     }),
+    undefined,
   );
-  assert.throws(
-    () =>
-      validateFinalDistTags({
-        ...common,
-        packageName: "@acme/pglite",
-        tags: partiallyFinalized,
-      }),
-    /still has staging dist-tags/,
+  assert.equal(
+    distTagMismatch({
+      ...common,
+      packageName: "@acme/pglite",
+      tags: new Map([["line-0-3", "0.3.16"]]),
+    }),
+    "@acme/pglite dist-tag line-0-3 names 0.3.16, not 0.3.17",
   );
-});
-
-test("package-family tag finalization is ordered and idempotent", () => {
-  const packages = [
-    { name: "@acme/pglite", version: "0.3.17" },
-    { name: "@acme/pglite-react", version: "0.2.34" },
-    { name: "@acme/pglite-vue", version: "0.2.34" },
-  ];
-  const registry = fakeDistTagRegistry({
-    "@acme/pglite": {
-      "line-0-3": "0.3.17",
-      "staging-30300319510": "0.3.17",
-      "staging-future": "0.3.18",
-    },
-    "@acme/pglite-react": {
-      "staging-30300319510": "0.2.34",
-    },
-    "@acme/pglite-vue": {},
-  });
-  const finalize = () =>
-    finalizeDistTags({
-      packages,
-      distTag: "line-0-3",
-      promoteLatest: false,
-      runNpm: registry.runNpm,
-    });
-
-  finalize();
-
-  const mutations = registry.calls.filter(([, action]) => action !== "ls");
-  assert.deepEqual(mutations, [
-    [
-      "dist-tag",
-      "add",
-      "@acme/pglite-react@0.2.34",
-      "line-0-3",
-    ],
-    [
-      "dist-tag",
-      "add",
-      "@acme/pglite-vue@0.2.34",
-      "line-0-3",
-    ],
-    [
-      "dist-tag",
-      "rm",
-      "@acme/pglite",
-      "staging-30300319510",
-    ],
-    [
-      "dist-tag",
-      "rm",
-      "@acme/pglite-react",
-      "staging-30300319510",
-    ],
-  ]);
-  assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite")),
-    {
-      "line-0-3": "0.3.17",
-      "staging-future": "0.3.18",
-    },
+  // A package the run never reached and one it left behind are different
+  // failures, and they are worth telling apart in the message: the first says
+  // the publish step died, the second says it published the wrong thing.
+  assert.equal(
+    distTagMismatch({
+      ...common,
+      packageName: "@acme/pglite",
+      tags: new Map(),
+    }),
+    "@acme/pglite dist-tag line-0-3 names nothing, not 0.3.17",
   );
-  assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite-react")),
-    { "line-0-3": "0.2.34" },
-  );
-  assert.deepEqual(
-    Object.fromEntries(registry.tagsByPackage.get("@acme/pglite-vue")),
-    { "line-0-3": "0.2.34" },
-  );
-
-  finalize();
-  assert.deepEqual(
-    registry.calls.filter(([, action]) => action !== "ls"),
-    mutations,
+  // `latest` is moved by a person, not by a run, so where it points is not this
+  // check's business.
+  assert.equal(
+    distTagMismatch({
+      ...common,
+      packageName: "@acme/pglite",
+      tags: new Map([
+        ["line-0-3", "0.3.17"],
+        ["latest", "0.2.9"],
+      ]),
+    }),
+    undefined,
   );
 });
 
-test("package-family tag finalization can promote latest", () => {
+test("the release verification reads every package and writes none", () => {
   const registry = fakeDistTagRegistry({
-    "@acme/pglite": {
-      latest: "0.3.16",
-      "line-0-3": "0.3.17",
-      "staging-30300319510": "0.3.17",
-    },
+    "@acme/pglite": { "line-0-3": "0.3.17", latest: "0.3.16" },
+    "@acme/pglite-react": { "line-0-3": "0.2.34" },
+    "@acme/pglite-vue": { "line-0-3": "0.2.34" },
   });
 
-  finalizeDistTags({
-    packages: [{ name: "@acme/pglite", version: "0.3.17" }],
+  verifyDistTags({
+    packages: [
+      { name: "@acme/pglite", version: "0.3.17" },
+      { name: "@acme/pglite-react", version: "0.2.34" },
+      { name: "@acme/pglite-vue", version: "0.2.34" },
+    ],
     distTag: "line-0-3",
-    promoteLatest: true,
     runNpm: registry.runNpm,
   });
 
+  assert.deepEqual(registry.calls, [
+    ["dist-tag", "ls", "@acme/pglite"],
+    ["dist-tag", "ls", "@acme/pglite-react"],
+    ["dist-tag", "ls", "@acme/pglite-vue"],
+  ]);
+  // The run holds no credential that could write one. If a write ever appears
+  // here, the lane has quietly acquired a stored token again.
+  assert.deepEqual(
+    registry.calls.filter(([, action]) => action !== "ls"),
+    [],
+  );
   assert.deepEqual(
     Object.fromEntries(registry.tagsByPackage.get("@acme/pglite")),
-    {
-      latest: "0.3.17",
-      "line-0-3": "0.3.17",
-    },
+    { "line-0-3": "0.3.17", latest: "0.3.16" },
   );
 });
 
-test("package-family tag finalization validates all listings before writes", () => {
-  const mutations = [];
+test("a half-published family is reported whole, not one package at a time", () => {
+  const registry = fakeDistTagRegistry({
+    "@acme/pglite": { "line-0-3": "0.3.17" },
+    "@acme/pglite-react": { "line-0-3": "0.2.33" },
+    "@acme/pglite-vue": {},
+  });
+
+  assert.throws(
+    () =>
+      verifyDistTags({
+        packages: [
+          { name: "@acme/pglite", version: "0.3.17" },
+          { name: "@acme/pglite-react", version: "0.2.34" },
+          { name: "@acme/pglite-vue", version: "0.2.34" },
+        ],
+        distTag: "line-0-3",
+        runNpm: registry.runNpm,
+      }),
+    (error) => {
+      assert.match(error.message, /line-0-3 does not name this release/);
+      assert.match(
+        error.message,
+        /@acme\/pglite-react dist-tag line-0-3 names 0\.2\.33, not 0\.2\.34/,
+      );
+      assert.match(
+        error.message,
+        /@acme\/pglite-vue dist-tag line-0-3 names nothing, not 0\.2\.34/,
+      );
+      // The package that is correct is not in the list: the operator reruns
+      // what failed, and a list that names everything names nothing.
+      assert.equal(/@acme\/pglite dist-tag/.test(error.message), false);
+      return true;
+    },
+  );
+  assert.equal(registry.calls.length, 3, "every package must still be read");
+});
+
+test("an unreadable listing fails the release rather than passing it", () => {
   const runNpm = (args) => {
     const [, action, packageName] = args;
-    if (action !== "ls") {
-      mutations.push(args);
-      return "";
-    }
-    if (packageName === "@acme/pglite") {
-      return "staging-30300319510: 0.3.17\n";
-    }
-    return "not a dist-tag record\n";
+    assert.equal(action, "ls");
+    return packageName === "@acme/pglite"
+      ? "line-0-3: 0.3.17\n"
+      : "not a dist-tag record\n";
   };
 
   assert.throws(
     () =>
-      finalizeDistTags({
+      verifyDistTags({
         packages: [
           { name: "@acme/pglite", version: "0.3.17" },
           { name: "@acme/pglite-react", version: "0.2.34" },
         ],
         distTag: "line-0-3",
-        promoteLatest: false,
         runNpm,
       }),
     /invalid dist-tag record for @acme\/pglite-react/,
   );
-  assert.deepEqual(mutations, []);
-});
-
-test("package-family tag finalization enforces registry postconditions", () => {
-  const mutations = [];
-  const runNpm = (args) => {
-    const [, action] = args;
-    if (action === "ls") {
-      return "staging-30300319510: 0.3.17\n";
-    }
-    mutations.push(args);
-    return "";
-  };
-
-  assert.throws(
-    () =>
-      finalizeDistTags({
-        packages: [{ name: "@acme/pglite", version: "0.3.17" }],
-        distTag: "line-0-3",
-        promoteLatest: false,
-        runNpm,
-      }),
-    /dist-tag line-0-3 does not point to 0.3.17/,
-  );
-  assert.deepEqual(mutations, [
-    ["dist-tag", "add", "@acme/pglite@0.3.17", "line-0-3"],
-    [
-      "dist-tag",
-      "rm",
-      "@acme/pglite",
-      "staging-30300319510",
-    ],
-  ]);
 });
 
 test("remote package tags resolve to their commit targets", () => {
@@ -934,17 +929,23 @@ test("existing package tag targets must declare the tagged identity", () => {
   );
 });
 
-test("package Git tags are preflighted before registry tags mutate", () => {
+test("no Git tag is pushed before the published family is verified", () => {
   const finalizer = readFileSync(
     new URL("./finalize-release.mjs", import.meta.url),
     "utf8",
   );
-  const gitTagPreflight = finalizer.indexOf("const gitTagPlans");
-  const registryFinalization = finalizer.indexOf("finalizeDistTags({");
+  const preflight = finalizer.indexOf("const gitTagPlans");
+  const verification = finalizer.indexOf("verifyDistTags({");
+  const push = finalizer.indexOf('git(["tag"');
 
-  assert.notEqual(gitTagPreflight, -1);
-  assert.notEqual(registryFinalization, -1);
-  assert.ok(gitTagPreflight < registryFinalization);
+  assert.notEqual(preflight, -1);
+  assert.notEqual(verification, -1);
+  assert.notEqual(push, -1);
+  // The preflight only reads the remote, so it may run first. The push is the
+  // step that makes a claim, and a Git tag must not outlive a registry state
+  // that contradicts it.
+  assert.ok(preflight < verification);
+  assert.ok(verification < push);
 });
 
 test("automatic publication reacts only to package version changes", () => {
@@ -1069,6 +1070,61 @@ test("the package scope follows the manifest, not the tooling", () => {
   );
 });
 
+test("the registry follows the manifest, not the tooling", () => {
+  // A line written before the field existed still targets GitHub Packages, so
+  // the default is part of the contract rather than a convenience.
+  assert.equal(defaultRegistry, "https://npm.pkg.github.com");
+  assert.equal(validateReleaseConfig(validConfig).registry, defaultRegistry);
+  assert.equal(
+    validateReleaseConfig({
+      ...validConfig,
+      registry: "https://registry.npmjs.org",
+    }).registry,
+    "https://registry.npmjs.org",
+  );
+
+  // The field aims the guard against publishing to the wrong host, so a value
+  // the guard cannot vouch for is rejected rather than carried. A plaintext
+  // scheme is rejected too: it would be a way around the guard, not a variant
+  // of it.
+  for (const rejected of [
+    "http://registry.npmjs.org",
+    "registry.npmjs.org",
+    "https://",
+    "https://localhost",
+    "https://registry.npmjs.org/two words",
+    "",
+    null,
+    42,
+  ]) {
+    assert.throws(
+      () => validateReleaseConfig({ ...validConfig, registry: rejected }),
+      /invalid registry/,
+      `registry must be rejected: ${String(rejected)}`,
+    );
+  }
+
+  // Exactly one file may name a registry host, and it is the one that defines
+  // the default above. Every other script reads what the line declared and the
+  // release context carried — the same rule the owner is already held to, for
+  // the same reason: the family has moved registry once and will again.
+  const registryHosts = /npm\.pkg\.github\.com|registry\.npmjs\.org/;
+  const scripts = readdirSync(new URL(".", import.meta.url)).filter(
+    (name) =>
+      name.endsWith(".mjs") &&
+      !name.endsWith(".test.mjs") &&
+      name !== "release-config.mjs",
+  );
+  assert.ok(scripts.length > 5, "the script scan must not be empty");
+  for (const name of scripts) {
+    assert.equal(
+      registryHosts.test(readFileSync(new URL(name, import.meta.url), "utf8")),
+      false,
+      `${name} must not name a registry host`,
+    );
+  }
+});
+
 test("fork repositories resolve from the run context and the submodule link", () => {
   assert.equal(
     runContextRepository({
@@ -1141,7 +1197,12 @@ test("the release workflow reads its identity from the run context", () => {
     workflow,
     /SIGNER_WORKFLOW: \$\{\{ job\.workflow_repository \}\}\/\.github\/workflows\/build\.yml/,
   );
-  assert.match(workflow, /scope: "@\$\{\{ github\.repository_owner \}\}"/);
+  // The scope used to be derived from the repository owner, which is correct on
+  // GitHub Packages — there the owner *is* the scope. On a registry where the
+  // scope is a free choice, the two are only accidentally the same string, so
+  // the scope comes from the line manifest and the owner from the run.
+  assert.match(workflow, /scope: "@\$\{\{ needs\.resolve\.outputs\.scope \}\}"/);
+  assert.doesNotMatch(workflow, /github\.repository_owner/);
   assert.doesNotMatch(workflow, /--signer-workflow [a-z]/);
   assert.equal(
     ownerNamePattern.test(workflow),

@@ -3,7 +3,6 @@ run-name: ${{ inputs.publish && 'publish' || 'verify' }} ${{ inputs.line || inpu
 
 permissions:
   contents: read
-  packages: read
 
 on:
   workflow_dispatch:
@@ -17,11 +16,6 @@ on:
         required: false
         default: ""
         type: string
-      promote_latest:
-        description: "when publishing, also move the latest dist-tag"
-        required: false
-        default: false
-        type: boolean
       publish:
         description: "attest, publish, and finalize the verified release"
         required: false
@@ -42,11 +36,6 @@ on:
         required: false
         default: ""
         type: string
-      promote_latest:
-        description: "when publishing, also move the latest dist-tag"
-        required: false
-        default: false
-        type: boolean
       publish:
         description: "attest, publish, and finalize the verified release"
         required: true
@@ -64,13 +53,16 @@ env:
   SOURCE_REF: ${{ inputs.source_ref || inputs.ref }}
   SOURCE_OVERRIDE: ${{ inputs.source_ref != '' }}
   PUBLISH_MODE: ${{ inputs.publish }}
-  STAGING_TAG: staging-${{ github.run_id }}
   TZ: UTC
 
 jobs:
   resolve:
     name: Resolve release identity
     runs-on: ubuntu-latest
+    outputs:
+      dist_tag: ${{ steps.identity.outputs.dist_tag }}
+      registry: ${{ steps.identity.outputs.registry }}
+      scope: ${{ steps.identity.outputs.scope }}
     steps:
       - name: Checkout release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -86,6 +78,7 @@ jobs:
           sparse-checkout: .github
           path: .release-toolset
       - name: Resolve and validate release
+        id: identity
         env:
           RELEASE_CONTEXT: ${{ runner.temp }}/release-context.json
         run: node .release-toolset/.github/scripts/resolve-release.mjs
@@ -128,8 +121,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@${{ github.repository_owner }}"
+          registry-url: ${{ needs.resolve.outputs.registry }}
+          scope: "@${{ needs.resolve.outputs.scope }}"
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Verify package licensing
@@ -170,7 +163,6 @@ jobs:
       - name: Classify package versions
         id: classify
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKED_PACKAGES: ${{ runner.temp }}/release/packed-packages.json
           PUBLISH_PACKAGES: ${{ runner.temp }}/release/publish-packages.json
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
@@ -194,12 +186,13 @@ jobs:
 
   verify:
     name: Verify ${{ matrix.name }}@${{ matrix.version }}
-    needs: build
+    needs:
+      - resolve
+      - build
     if: needs.build.outputs.count != '0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
@@ -219,8 +212,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@${{ github.repository_owner }}"
+          registry-url: ${{ needs.resolve.outputs.registry }}
+          scope: "@${{ needs.resolve.outputs.scope }}"
       - name: Write fork lineage predicate
         id: lineage
         env:
@@ -249,13 +242,13 @@ jobs:
           retention-days: 60
       - name: Dry-run package publication
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ needs.resolve.outputs.registry }}
           TARBALL: ${{ runner.temp }}/release/${{ matrix.filename }}
         run: |
           npm publish "$TARBALL" \
             --dry-run \
             --ignore-scripts \
-            --registry=https://npm.pkg.github.com
+            --registry="$REGISTRY"
 
   approval:
     name: Approve package family publication
@@ -280,6 +273,7 @@ jobs:
   publish:
     name: Attest and publish ${{ matrix.name }}@${{ matrix.version }}
     needs:
+      - resolve
       - build
       - verify
       - approval
@@ -293,7 +287,6 @@ jobs:
       attestations: write
       contents: read
       id-token: write
-      packages: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.build.outputs.matrix) }}
@@ -310,9 +303,15 @@ jobs:
           path: ${{ runner.temp }}/lineage
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@${{ github.repository_owner }}"
+          # Publishing is authenticated by exchanging this run's OIDC token for
+          # a one-time grant, and npm needs Node 22.14 with CLI 11.5.1 to make
+          # that exchange. Only this job is raised: the others build and test
+          # the workspace, and that runtime is the workspace's business.
+          node-version: 22
+          registry-url: ${{ needs.resolve.outputs.registry }}
+          scope: "@${{ needs.resolve.outputs.scope }}"
+      - name: Install a CLI that can exchange the run's identity
+        run: npm install --global npm@12
       - name: Attest package build provenance
         id: build-attestation
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
@@ -366,18 +365,23 @@ jobs:
             'signed fork-lineage predicate differs from validated predicate',
           )
           NODE
-      - name: Publish package to staging tag
+      # No credential is passed in. npm reads the run's identity for itself and
+      # accepts the publish only if the package names this repository and this
+      # workflow file as its trusted publisher.
+      - name: Publish package under the line tag
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIST_TAG: ${{ needs.resolve.outputs.dist_tag }}
+          REGISTRY: ${{ needs.resolve.outputs.registry }}
           TARBALL: ${{ runner.temp }}/release/${{ matrix.filename }}
         run: |
           npm publish "$TARBALL" \
-            --tag "$STAGING_TAG" \
-            --registry=https://npm.pkg.github.com
+            --tag "$DIST_TAG" \
+            --registry="$REGISTRY"
 
   finalize:
     name: Finalize package family release
     needs:
+      - resolve
       - build
       - verify
       - approval
@@ -393,7 +397,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
     steps:
       - name: Checkout release source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -415,12 +418,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@${{ github.repository_owner }}"
-      - name: Finalize release tags
+          registry-url: ${{ needs.resolve.outputs.registry }}
+          scope: "@${{ needs.resolve.outputs.scope }}"
+      - name: Verify the published family and tag the release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROMOTE_LATEST: ${{ inputs.promote_latest }}
           RELEASE_CONTEXT: ${{ runner.temp }}/release/release-context.json
           RELEASE_SUMMARY: ${{ runner.temp }}/release/release-summary.json
         run: node .release-toolset/.github/scripts/finalize-release.mjs

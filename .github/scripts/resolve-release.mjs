@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { resolve } from "node:path";
 
 import {
@@ -152,8 +158,19 @@ const packages = releaseConfig.packages.map((definition) => {
   if (manifest.private !== false) {
     throw new Error(`package must be public in ${path}`);
   }
-  if (manifest.publishConfig?.registry !== "https://npm.pkg.github.com") {
-    throw new Error(`package must target GitHub Packages in ${path}`);
+  // The guard against an accidental publication elsewhere, now aimed by the
+  // line rather than by this file: a manifest must name the registry its line
+  // declares, so moving the line moves the check with it.
+  if (manifest.publishConfig?.registry !== releaseConfig.registry) {
+    throw new Error(
+      `package must target ${releaseConfig.registry} in ${path}`,
+    );
+  }
+  // A scoped package is private by default, and the difference is invisible
+  // until the first publish of a new name puts it behind a paywall the fork
+  // does not have. The manifest declares it and this refuses to guess.
+  if (manifest.publishConfig?.access !== "public") {
+    throw new Error(`package must declare public access in ${path}`);
   }
   if (upstreamManifest.name !== definition.upstreamName) {
     throw new Error(
@@ -285,6 +302,7 @@ const context = {
   releaseLine,
   scope: releaseConfig.scope,
   distTag: releaseConfig.distTag,
+  registry: releaseConfig.registry,
   packages,
   wrapper: {
     upstream: {
@@ -316,3 +334,19 @@ const context = {
 };
 
 writeFileSync(contextPath, `${JSON.stringify(context, null, 2)}\n`);
+
+// The three values later jobs need before they have the context file in hand:
+// the tag a package is published under, the registry it is published to, and
+// the scope its `.npmrc` is set up for. Emitting them here is what keeps the
+// workflow from naming any of the three itself.
+if (process.env.GITHUB_OUTPUT) {
+  appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    [
+      `dist_tag=${releaseConfig.distTag}`,
+      `registry=${releaseConfig.registry}`,
+      `scope=${releaseConfig.scope}`,
+      "",
+    ].join("\n"),
+  );
+}
