@@ -4,6 +4,7 @@ import {
   chmodSync,
   mkdtempSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -31,6 +32,7 @@ import {
   validateFinalDistTags,
 } from "./dist-tags.mjs";
 import {
+  defaultRegistry,
   loadReleaseConfig,
   parseReleaseLine,
   releaseConfigPath,
@@ -378,6 +380,7 @@ test("release config owns and validates the complete package list", () => {
     ...validConfig,
     scope: "acme",
     rootPackage: "@acme/pglite",
+    registry: defaultRegistry,
     packages: [
       validConfig.packages[0],
       { ...validConfig.packages[1], postgresLicense: false },
@@ -1067,6 +1070,61 @@ test("the package scope follows the manifest, not the tooling", () => {
       }),
     /must include @acme\/pglite/,
   );
+});
+
+test("the registry follows the manifest, not the tooling", () => {
+  // A line written before the field existed still targets GitHub Packages, so
+  // the default is part of the contract rather than a convenience.
+  assert.equal(defaultRegistry, "https://npm.pkg.github.com");
+  assert.equal(validateReleaseConfig(validConfig).registry, defaultRegistry);
+  assert.equal(
+    validateReleaseConfig({
+      ...validConfig,
+      registry: "https://registry.npmjs.org",
+    }).registry,
+    "https://registry.npmjs.org",
+  );
+
+  // The field aims the guard against publishing to the wrong host, so a value
+  // the guard cannot vouch for is rejected rather than carried. A plaintext
+  // scheme is rejected too: it would be a way around the guard, not a variant
+  // of it.
+  for (const rejected of [
+    "http://registry.npmjs.org",
+    "registry.npmjs.org",
+    "https://",
+    "https://localhost",
+    "https://registry.npmjs.org/two words",
+    "",
+    null,
+    42,
+  ]) {
+    assert.throws(
+      () => validateReleaseConfig({ ...validConfig, registry: rejected }),
+      /invalid registry/,
+      `registry must be rejected: ${String(rejected)}`,
+    );
+  }
+
+  // Exactly one file may name a registry host, and it is the one that defines
+  // the default above. Every other script reads what the line declared and the
+  // release context carried — the same rule the owner is already held to, for
+  // the same reason: the family has moved registry once and will again.
+  const registryHosts = /npm\.pkg\.github\.com|registry\.npmjs\.org/;
+  const scripts = readdirSync(new URL(".", import.meta.url)).filter(
+    (name) =>
+      name.endsWith(".mjs") &&
+      !name.endsWith(".test.mjs") &&
+      name !== "release-config.mjs",
+  );
+  assert.ok(scripts.length > 5, "the script scan must not be empty");
+  for (const name of scripts) {
+    assert.equal(
+      registryHosts.test(readFileSync(new URL(name, import.meta.url), "utf8")),
+      false,
+      `${name} must not name a registry host`,
+    );
+  }
 });
 
 test("fork repositories resolve from the run context and the submodule link", () => {

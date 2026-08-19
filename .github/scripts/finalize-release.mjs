@@ -13,11 +13,17 @@ if (!stagingTag?.startsWith("staging-")) {
   throw new Error(`invalid staging tag: ${stagingTag}`);
 }
 if (!summaryPath) throw new Error("RELEASE_SUMMARY is required");
+// Whichever registry the line declared when the context was resolved. Failing
+// closed here matters more than elsewhere: this step writes, and a default
+// would let it write to a registry the run never verified against.
+if (typeof context.registry !== "string" || context.registry === "") {
+  throw new Error("release context declares no registry");
+}
 
 function npm(args) {
   const result = spawnSync(
     "npm",
-    [...args, "--registry=https://npm.pkg.github.com"],
+    [...args, `--registry=${context.registry}`],
     { encoding: "utf8" },
   );
   if (result.status === 0) return result.stdout;

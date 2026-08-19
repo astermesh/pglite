@@ -152,8 +152,13 @@ const packages = releaseConfig.packages.map((definition) => {
   if (manifest.private !== false) {
     throw new Error(`package must be public in ${path}`);
   }
-  if (manifest.publishConfig?.registry !== "https://npm.pkg.github.com") {
-    throw new Error(`package must target GitHub Packages in ${path}`);
+  // The guard against an accidental publication elsewhere, now aimed by the
+  // line rather than by this file: a manifest must name the registry its line
+  // declares, so moving the line moves the check with it.
+  if (manifest.publishConfig?.registry !== releaseConfig.registry) {
+    throw new Error(
+      `package must target ${releaseConfig.registry} in ${path}`,
+    );
   }
   if (upstreamManifest.name !== definition.upstreamName) {
     throw new Error(
@@ -285,6 +290,7 @@ const context = {
   releaseLine,
   scope: releaseConfig.scope,
   distTag: releaseConfig.distTag,
+  registry: releaseConfig.registry,
   packages,
   wrapper: {
     upstream: {
