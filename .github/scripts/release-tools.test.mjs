@@ -247,6 +247,29 @@ test("verification runs never share the release concurrency group", () => {
   assert.match(concurrency, /cancel-in-progress: false/);
 });
 
+test("the workflow names no registry of its own", () => {
+  const workflow = readFileSync(
+    new URL("../workflows/build.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(
+    workflow.split("registry-url: ${{ needs.resolve.outputs.registry }}")
+      .length - 1,
+    4,
+    "build, verify, publish and finalize each set up npm for the line",
+  );
+  assert.match(workflow, /--registry="\$REGISTRY"/);
+  assert.doesNotMatch(workflow, /npm\.pkg\.github\.com/);
+
+  // One public-registry mention survives, and it is not the family's: npx
+  // fetches the schema validator from npmjs wherever the family is published.
+  assert.deepEqual(workflow.match(/registry\.npmjs\.org/g), [
+    "registry.npmjs.org",
+  ]);
+  assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org/);
+});
+
 test("the run publishes under the line tag and moves no tag afterwards", () => {
   const workflow = readFileSync(
     new URL("../workflows/build.yml", import.meta.url),
@@ -1143,7 +1166,12 @@ test("the release workflow reads its identity from the run context", () => {
     workflow,
     /SIGNER_WORKFLOW: \$\{\{ job\.workflow_repository \}\}\/\.github\/workflows\/build\.yml/,
   );
-  assert.match(workflow, /scope: "@\$\{\{ github\.repository_owner \}\}"/);
+  // The scope used to be derived from the repository owner, which is correct on
+  // GitHub Packages — there the owner *is* the scope. On a registry where the
+  // scope is a free choice, the two are only accidentally the same string, so
+  // the scope comes from the line manifest and the owner from the run.
+  assert.match(workflow, /scope: "@\$\{\{ needs\.resolve\.outputs\.scope \}\}"/);
+  assert.doesNotMatch(workflow, /github\.repository_owner/);
   assert.doesNotMatch(workflow, /--signer-workflow [a-z]/);
   assert.equal(
     ownerNamePattern.test(workflow),
