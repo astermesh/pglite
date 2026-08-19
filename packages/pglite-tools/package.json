@@ -1,6 +1,6 @@
 {
   "name": "@simthis/pglite-tools",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "description": "Tools for working with PGlite databases",
   "author": "Electric DB Limited",
   "homepage": "https://pglite.dev",

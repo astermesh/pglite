@@ -1,6 +1,6 @@
 {
   "name": "@simthis/pglite-socket",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "A socket implementation for PGlite enabling remote connections",
   "author": "Electric DB Limited",
   "homepage": "https://pglite.dev",
