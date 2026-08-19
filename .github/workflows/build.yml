@@ -376,7 +376,6 @@ jobs:
         run: |
           npm publish "$TARBALL" \
             --tag "$DIST_TAG" \
-            --access public \
             --registry="$REGISTRY"
 
   finalize:

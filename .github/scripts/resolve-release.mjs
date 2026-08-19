@@ -166,6 +166,12 @@ const packages = releaseConfig.packages.map((definition) => {
       `package must target ${releaseConfig.registry} in ${path}`,
     );
   }
+  // A scoped package is private by default, and the difference is invisible
+  // until the first publish of a new name puts it behind a paywall the fork
+  // does not have. The manifest declares it and this refuses to guess.
+  if (manifest.publishConfig?.access !== "public") {
+    throw new Error(`package must declare public access in ${path}`);
+  }
   if (upstreamManifest.name !== definition.upstreamName) {
     throw new Error(
       `unexpected upstream package name in ${path}: ${upstreamManifest.name}`,

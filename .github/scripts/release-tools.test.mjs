@@ -300,7 +300,14 @@ test("publication proves the run's identity instead of carrying a credential", (
   assert.match(publish, /node-version: 22\n/);
   assert.match(publish, /npm install --global npm@(1[2-9]|[2-9][0-9])/);
   assert.match(publish, /id-token: write/);
-  assert.match(publish, /--access public/);
+  // Public access is declared by each manifest and checked when the release is
+  // resolved, so the publish command does not repeat it. Two places to state
+  // one fact is how they end up disagreeing.
+  assert.doesNotMatch(publish, /--access/);
+  assert.match(
+    readFileSync(new URL("./resolve-release.mjs", import.meta.url), "utf8"),
+    /publishConfig\?\.access !== "public"/,
+  );
 
   // Nothing in the lane carries a registry credential. A GitHub token is not a
   // stored secret, but it authenticates to GitHub Packages and means nothing
