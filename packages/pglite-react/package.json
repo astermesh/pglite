@@ -1,6 +1,6 @@
 {
   "name": "@simthis/pglite-react",
-  "version": "0.2.35",
+  "version": "0.2.36",
   "description": "Hooks for using PGlite",
   "type": "module",
   "private": false,
